@@ -12,10 +12,6 @@ local: syn_pre_cmd check_tool generate_tcl synthesis syn_post_cmd
 generate_tcl:
 		echo "project open $(PROJECT)" > run.tcl
 		echo "process run {Synthesize - XST}" >> run.tcl
-		echo "process run {Translate}" >> run.tcl
-		echo "process run {Map}" >> run.tcl
-		echo "process run {Place & Route}" >> run.tcl
-		echo "process run {Generate Programming File}" >> run.tcl
 
 synthesis:
 		/media/opt/opt/Xilinx/14.7/ISE_DS/ISE/bin/lin64/xtclsh run.tcl
@@ -126,7 +122,6 @@ FILES := ../../../modules/wr_pps_gen/xwr_pps_gen.vhd \
 ../../../ip_cores/general-cores/modules/common/gc_prio_encoder.vhd \
 ../../../ip_cores/general-cores/modules/genrams/xilinx/gc_shiftreg.vhd \
 ../../../modules/wr_endpoint/ep_leds_controller.vhd \
-../../../top/cutedp_wrc/ip_cores/cutedp_wrc.vhd \
 ../../../modules/wr_softpll_ng/xwr_softpll_ng.vhd \
 ../../../ip_cores/etherbone-core/hdl/eb_slave_core/eb_stream_narrow.vhd \
 ../../../ip_cores/etherbone-core/hdl/eb_slave_core/eb_commit_fifo.vhd \
@@ -155,7 +150,7 @@ FILES := ../../../modules/wr_pps_gen/xwr_pps_gen.vhd \
 ../../../ip_cores/general-cores/modules/common/gc_i2c_slave.vhd \
 ../../../ip_cores/etherbone-core/hdl/eb_slave_core/eb_raw_slave.vhd \
 ../../../ip_cores/general-cores/modules/wishbone/wb_spi/spi_clgen.v \
-../../../ip_cores/etherbone-core/hdl/eb_master_core/eb_framer.vhd \
+../../../top/cutedp_wrc/pcn_cores/cutedp_wrc.vhd \
 ../../../ip_cores/general-cores/modules/wishbone/wb_i2c_bridge/wb_i2c_bridge.vhd \
 ../../../modules/wr_tbi_phy/enc_8b10b.vhd \
 ../../../modules/wr_si57x_interface/si570_if_wbgen2_pkg.vhd \
@@ -346,6 +341,7 @@ cutedp_wrc.xise \
 ../../../ip_cores/general-cores/modules/wishbone/wb_vic/xwb_vic.vhd \
 ../../../ip_cores/general-cores/modules/wishbone/wb_i2c_master/i2c_master_byte_ctrl.vhd \
 ../../../modules/wrc_core/xwr_core.vhd \
+../../../ip_cores/etherbone-core/hdl/eb_master_core/eb_framer.vhd \
 ../../../ip_cores/general-cores/modules/wishbone/wb_lm32/src/lm32_ram.vhd \
 ../../../ip_cores/etherbone-core/hdl/eb_slave_core/eb_internals_pkg.vhd \
 ../../../modules/wr_tbi_phy/wr_tbi_phy.vhd \

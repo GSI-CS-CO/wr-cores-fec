@@ -12,7 +12,7 @@ syn_project = "cutedp_wrc.xise"
 syn_tool = "ise"
 
 modules = { "local" : 
-						[ "../../../top/cutedp_wrc/ip_cores", 
+						[ "../../../top/cutedp_wrc/pcn_cores", 
 						  "../../../platform",
                           "lm32_ram" ],
 
