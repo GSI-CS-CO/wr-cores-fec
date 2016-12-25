@@ -473,7 +473,7 @@
     <file xil_pn:name="../../../modules/wr_lhaaso_ed/lhaaso_ed_wb.vhd" xil_pn:type="FILE_VHDL">
       <association xil_pn:name="Implementation" xil_pn:seqID="0"/>
     </file>
-    <file xil_pn:name="lm32_ram/wrc.vhd" xil_pn:type="FILE_VHDL">
+    <file xil_pn:name="../../../../wrpc_sw/wrc.vhd" xil_pn:type="FILE_VHDL">
       <association xil_pn:name="Implementation" xil_pn:seqID="3"/>
     </file>
     <file xil_pn:name="../../../platform/xilinx/wr_gtp_phy/whiterabbit_gtxe2_channel_wrapper_gt.vhd" xil_pn:type="FILE_VHDL">

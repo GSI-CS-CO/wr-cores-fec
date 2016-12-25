@@ -116,7 +116,7 @@ entity cutedp_wrc is
       ext_master_i : in t_wishbone_master_in:=cc_unused_master_in;
       ext_master_o : out t_wishbone_master_out;
 			
-			aux_master_i : in t_wishbone_master_in:=cc_unused_master_in;
+      aux_master_i : in t_wishbone_master_in:=cc_unused_master_in;
       aux_master_o : out t_wishbone_master_out
       );
 

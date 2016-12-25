@@ -13,9 +13,7 @@ syn_tool = "ise"
 
 modules = { "local" : 
 						[ "../../../top/cutedp_wrc/pcn_cores", 
-						  "../../../platform",
-                          "lm32_ram" ],
-
+						  "../../../platform" ],
 	    "git" : 
 						[ "git://ohwr.org/hdl-core-lib/general-cores.git",
 						  "git://ohwr.org/hdl-core-lib/gn4124-core.git",
