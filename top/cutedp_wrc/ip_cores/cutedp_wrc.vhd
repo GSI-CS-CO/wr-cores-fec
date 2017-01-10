@@ -35,12 +35,12 @@ entity cutedp_wrc is
       sfp0_led_o : out std_logic;
       sfp1_led_o : out std_logic;
 
-      dac_sclk_o  : out std_logic;
-      dac_din_o   : out std_logic;
-      dac_clr_n_o : out std_logic;
-      dac_ldac_n_o : out std_logic;
-      dac_sync_n_o : out std_logic;
+      dac_hpll_load_p1_o : out std_logic;
+      dac_hpll_data_o    : out std_logic_vector(15 downto 0);
 
+      dac_dpll_load_p1_o : out std_logic;
+      dac_dpll_data_o    : out std_logic_vector(15 downto 0);
+    
       fpga_scl_i : in  std_logic;
       fpga_scl_o : out std_logic;
       fpga_sda_i : in  std_logic;
@@ -163,11 +163,6 @@ architecture rtl of cutedp_wrc is
 
   signal dac_rst_n        : std_logic;
   signal led_divider      : unsigned(23 downto 0);
-
-  signal dac_hpll_load_p1 : std_logic;
-  signal dac_dpll_load_p1 : std_logic;
-  signal dac_hpll_data    : std_logic_vector(15 downto 0);
-  signal dac_dpll_data    : std_logic_vector(15 downto 0);
 
   signal owr_en : std_logic_vector(1 downto 0);
   signal owr_i  : std_logic_vector(1 downto 0);
@@ -333,10 +328,10 @@ port map (
     pps_ext_i             => '0',
     rst_n_i               => rst_n_i,
 
-    dac_hpll_load_p1_o    => dac_hpll_load_p1,
-    dac_hpll_data_o       => dac_hpll_data,
-    dac_dpll_load_p1_o    => dac_dpll_load_p1,
-    dac_dpll_data_o       => dac_dpll_data,
+    dac_hpll_load_p1_o    => dac_hpll_load_p1_o,
+    dac_hpll_data_o       => dac_hpll_data_o,
+    dac_dpll_load_p1_o    => dac_dpll_load_p1_o,
+    dac_dpll_data_o       => dac_dpll_data_o,
 
 --    phy_ref_clk_i      => clk_ref_i,
 --    phy_tx_data_o      => phy0_tx_data,
@@ -602,24 +597,6 @@ port map (
 	--pad_txp1_o         => open,
 	--pad_rxn1_i         => '0',
 	--pad_rxp1_i         => '0'
-);
-
-u_dac_arb : cute_serial_dac_arb
-generic map (
-    g_invert_sclk    => false,
-    g_num_extra_bits => 8)
-port map (
-    clk_i   => clk_sys_i,
-    rst_n_i => rst_n_i,
-    val1_i  => dac_hpll_data,
-    load1_i => dac_hpll_load_p1,
-    val2_i  => dac_dpll_data,
-    load2_i => dac_dpll_load_p1,
-    dac_sync_n_o  => dac_sync_n_o,
-    dac_ldac_n_o  => dac_ldac_n_o,
-    dac_clr_n_o   => dac_clr_n_o,
-    dac_sclk_o    => dac_sclk_o,
-    dac_din_o     => dac_din_o
 );
 
 end rtl;
