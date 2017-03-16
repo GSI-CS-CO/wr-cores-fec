@@ -6,7 +6,7 @@
 -- Author     : Tomasz Wlostowski
 -- Company    : CERN BE-CO-HT
 -- Created    : 2010-04-26
--- Last update: 2013-03-15
+-- Last update: 2017-02-20
 -- Platform   : FPGA-generics
 -- Standard   : VHDL
 -------------------------------------------------------------------------------
@@ -20,7 +20,7 @@
 -- Refer to the manual for more details.
 -------------------------------------------------------------------------------
 --
--- Copyright (c) 2011 - 2012 CERN / BE-CO-HT
+-- Copyright (c) 2011 - 2017 CERN / BE-CO-HT
 --
 -- This source file is free software; you can redistribute it   
 -- and/or modify it under the terms of the GNU Lesser General   
@@ -91,8 +91,12 @@ entity wr_endpoint is
 -- DMTD offset clock for phase tracking - used only if g_with_dmtd == true
     clk_dmtd_i : in std_logic;
 
--- sync reset (clk_sys_i domain), active LO
-    rst_n_i : in std_logic;
+-- resets for various clock domains
+    rst_sys_n_i   : in std_logic;
+    rst_ref_n_i   : in std_logic;
+    rst_dmtd_n_i  : in std_logic;
+    rst_txclk_n_i : in std_logic;
+    rst_rxclk_n_i : in std_logic;
 
 -- PPS input (1 clk_ref_i cycle HI) for synchronizing timestamp counter
     pps_csync_p1_i : in std_logic;
@@ -105,16 +109,14 @@ entity wr_endpoint is
 -- PHY Interace (8/16 bit PCS)
 -------------------------------------------------------------------------------    
 
-    phy_rst_o    : out std_logic;
+    phy_rst_o            : out std_logic;
     phy_loopen_o         : out std_logic;
     phy_loopen_vec_o     : out std_logic_vector(2 downto 0);
     phy_tx_prbs_sel_o    : out std_logic_vector(2 downto 0);
     phy_sfp_tx_fault_i   : in  std_logic;
     phy_sfp_los_i        : in  std_logic;
     phy_sfp_tx_disable_o : out std_logic;
-    phy_enable_o : out std_logic;
-    phy_syncen_o : out std_logic;
-    phy_rdy_i    : in  std_logic;
+    phy_rdy_i            : in  std_logic;
 
     phy_ref_clk_i      : in  std_logic;
     phy_tx_data_o      : out std_logic_vector(f_pcs_data_width(g_pcs_16bit)-1 downto 0);
@@ -132,15 +134,15 @@ entity wr_endpoint is
 -- GMII Interface (8-bit)
 -------------------------------------------------------------------------------
 
-    gmii_tx_clk_i : in  std_logic;
-    gmii_txd_o    : out std_logic_vector(7 downto 0) := x"00";
-    gmii_tx_en_o  : out std_logic                    := '0';
-    gmii_tx_er_o  : out std_logic                    := '0';
+    gmii_tx_clk_i : in  std_logic := '0';
+    gmii_txd_o    : out std_logic_vector(7 downto 0);
+    gmii_tx_en_o  : out std_logic;
+    gmii_tx_er_o  : out std_logic;
 
-    gmii_rx_clk_i : in std_logic;
-    gmii_rxd_i    : in std_logic_vector(7 downto 0);
-    gmii_rx_er_i  : in std_logic;
-    gmii_rx_dv_i  : in std_logic;
+    gmii_rx_clk_i : in std_logic                    := '0';
+    gmii_rxd_i    : in std_logic_vector(7 downto 0) := x"00";
+    gmii_rx_er_i  : in std_logic                    := '0';
+    gmii_rx_dv_i  : in std_logic                    := '0';
 
     ---------------------------------------------------------------------------
     -- Wishbone I/O
@@ -308,22 +310,14 @@ architecture syn of wr_endpoint is
   constant c_zeros : std_logic_vector(63 downto 0) := (others => '0');
   constant c_ones  : std_logic_vector(63 downto 0) := (others => '0');
 
-  function f_pick_rate (pcs_16bit : boolean) return integer is
-  begin
-    if(pcs_16bit) then
-      return 62500000;
-    else
-      return 125000000;
-    end if;
-  end f_pick_rate;
-
 -------------------------------------------------------------------------------
   component dmtd_phase_meas
     generic (
       g_deglitcher_threshold : integer;
       g_counter_bits         : integer);
     port (
-      rst_n_i        : in  std_logic;
+      rst_sys_n_i    : in  std_logic;
+      rst_dmtd_n_i   : in  std_logic;
       clk_sys_i      : in  std_logic;
       clk_a_i        : in  std_logic;
       clk_b_i        : in  std_logic;
@@ -382,7 +376,7 @@ architecture syn of wr_endpoint is
   signal regs_towb_tsu   : t_ep_in_registers;
   signal regs_towb_rpath : t_ep_in_registers;
   signal regs_towb_tpath : t_ep_in_registers;
-  signal regs_towb_dmtd: t_ep_in_registers;
+  signal regs_towb_dmtd  : t_ep_in_registers;
 
 -------------------------------------------------------------------------------
 -- flow control signals
@@ -398,8 +392,8 @@ architecture syn of wr_endpoint is
 
   signal link_ok : std_logic;
 
-  signal txfra_enable, rxfra_enable : std_logic;
-  signal mdio_addr                  : std_logic_vector(15 downto 0);
+  signal txfra_enable : std_logic;
+  signal mdio_addr    : std_logic_vector(15 downto 0);
 
   signal sink_in  : t_wrf_sink_in;
   signal sink_out : t_wrf_sink_out;
@@ -407,7 +401,6 @@ architecture syn of wr_endpoint is
   signal src_in  : t_wrf_source_in;
   signal src_out : t_wrf_source_out;
 
-  signal rst_n_rxsync, rst_n_sys, rst_n_ref : std_logic;
   signal rst_n_rx : std_logic;
 
   signal wb_in  : t_wishbone_slave_in;
@@ -464,26 +457,7 @@ architecture syn of wr_endpoint is
 
 begin
 
-  -----------------------------------------------------------------------------
-  -- Reset signal synchronization
-  -----------------------------------------------------------------------------
-  
-  U_Sync_Rst_RX : gc_sync_ffs
-    port map (
-      clk_i    => phy_rx_clk_i,
-      rst_n_i  => '1',
-      data_i   => rst_n_i,
-      synced_o => rst_n_rxsync);
-
-  U_Sync_Rst_REF : gc_sync_ffs
-    port map (
-      clk_i    => clk_ref_i,
-      rst_n_i  => '1',
-      data_i   => rst_n_i,
-      synced_o => rst_n_ref);
-
-  rst_n_sys <= rst_n_i;
-  rst_n_rx  <= rst_n_rxsync and phy_rdy_i;
+  rst_n_rx  <= rst_rxclk_n_i and phy_rdy_i;
 
 -------------------------------------------------------------------------------
 -- 1000Base-X PCS
@@ -496,8 +470,10 @@ begin
       g_simulation => g_simulation,
       g_16bit      => g_pcs_16bit)
     port map (
-      rst_n_i   => rst_n_i,
-      clk_sys_i => clk_sys_i,
+      rst_sys_n_i   => rst_sys_n_i,
+      rst_rxclk_n_i => rst_rxclk_n_i,
+      rst_txclk_n_i => rst_txclk_n_i,
+      clk_sys_i     => clk_sys_i,
 
       rxpcs_fab_o             => rxpcs_fab,
       rxpcs_busy_o            => rxpcs_busy,
@@ -525,8 +501,6 @@ begin
       serdes_sfp_tx_fault_i    => phy_sfp_tx_fault_i,
       serdes_sfp_los_i         => phy_sfp_los_i,
       serdes_sfp_tx_disable_o  => phy_sfp_tx_disable_o,
-      serdes_enable_o          => phy_enable_o,
-      serdes_syncen_o          => phy_syncen_o,
       serdes_rdy_i             => phy_rdy_i,
 
       serdes_tx_clk_i       => phy_ref_clk_i,
@@ -571,7 +545,7 @@ begin
       g_use_new_crc           => g_use_new_txcrc)
     port map (
       clk_sys_i        => clk_sys_i,
-      rst_n_i          => rst_n_i,
+      rst_n_i          => rst_sys_n_i,
       pcs_error_i      => txpcs_error,
       pcs_busy_i       => txpcs_busy,
       pcs_fab_o        => txpcs_fab,
@@ -619,7 +593,6 @@ begin
 -------------------------------------------------------------------------------
 -- RX deframer
 -------------------------------------------------------------------------------
-  rxfra_enable <= link_ok and regs_fromwb.ecr_rx_en_o;
 
   U_Rx_Path : ep_rx_path
     generic map (
@@ -633,7 +606,7 @@ begin
       clk_sys_i => clk_sys_i,
       clk_rx_i  => phy_rx_clk_i,
 
-      rst_n_sys_i => rst_n_sys,
+      rst_n_sys_i => rst_sys_n_i,
       rst_n_rx_i  => rst_n_rx,
 
       pcs_fab_i             => rxpath_fab,
@@ -678,6 +651,7 @@ begin
   src_in.stall <= src_stall_i;
   src_in.ack   <= src_ack_i;
   src_in.err   <= src_err_i;
+  src_in.rty   <= '0';
 
 -------------------------------------------------------------------------------
 -- Flow control unit
@@ -715,14 +689,14 @@ begin
     generic map (
       g_timestamp_bits_r => 28,
       g_timestamp_bits_f => 4,
-      g_ref_clock_rate   => f_pick_rate(g_pcs_16bit))
+      g_ref_clock_rate   => f_pcs_clock_rate(g_pcs_16bit))
     port map (
       clk_ref_i      => clk_ref_i,
       clk_rx_i       => phy_rx_clk_i,
       clk_sys_i      => clk_sys_i,
-      rst_n_rx_i     => rst_n_rxsync,
-      rst_n_sys_i    => rst_n_sys,
-      rst_n_ref_i    => rst_n_ref,
+      rst_n_rx_i     => rst_rxclk_n_i,
+      rst_n_sys_i    => rst_sys_n_i,
+      rst_n_ref_i    => rst_ref_n_i,
       pps_csync_p1_i => pps_csync_p1_i,
       pps_valid_i    => pps_valid_i,
 
@@ -756,7 +730,7 @@ begin
       g_slave_granularity  => g_address_granularity)
     port map (
       clk_sys_i  => clk_sys_i,
-      rst_n_i    => rst_n_sys,
+      rst_n_i    => rst_sys_n_i,
       sl_adr_i   => extended_ADDR,
       sl_dat_i   => wb_dat_i,
       sl_sel_i   => wb_sel_i,
@@ -771,7 +745,7 @@ begin
 
   U_WB_SLAVE : ep_wishbone_controller
     port map (
-      rst_n_i    => rst_n_sys,
+      rst_n_i    => rst_sys_n_i,
       clk_sys_i  => clk_sys_i,
       wb_adr_i   => wb_in.adr(4 downto 0),
       wb_dat_i   => wb_in.dat,
@@ -802,18 +776,32 @@ begin
   begin
     if rising_edge(clk_sys_i) then
 
-      if(rst_n_i = '0') then
+      if(rst_sys_n_i = '0') or
+        (regs_fromwb.dsr_lact_o = '1' and regs_fromwb.dsr_lact_load_o = '1') then
         regs_towb_ep.dsr_lact_i <= '0';
       else
-        if(regs_fromwb.dsr_lact_o = '1' and regs_fromwb.dsr_lact_load_o = '1') then
-          regs_towb_ep.dsr_lact_i <= '0';  -- clear-on-write
-        elsif(txpcs_fab.dvalid = '1' or rxpath_fab.dvalid = '1') then
-          regs_towb_ep.dsr_lact_i <= '1';
-        end if;
+        regs_towb_ep.dsr_lact_i <= dvalid_rx or dvalid_tx;
       end if;
     end if;
   end process;
 
+  -- drive unused regs_towb_ep signals
+  regs_towb_ep.ecr_feat_vlan_i           <= '0';
+  regs_towb_ep.ecr_feat_dmtd_i           <= '0';
+  regs_towb_ep.ecr_feat_ptp_i            <= '0';
+  regs_towb_ep.ecr_feat_dpi_i            <= '0';
+  regs_towb_ep.tscr_cs_done_i            <= '0';
+  regs_towb_ep.tscr_rx_cal_result_i      <= '0';
+  regs_towb_ep.tcar_pcp_map_i            <= (others => '0');
+  regs_towb_ep.dsr_lstatus_i             <= '0';
+  regs_towb_ep.dmcr_en_i                 <= '0';
+  regs_towb_ep.dmcr_n_avg_i              <= (others => '0');
+  regs_towb_ep.inj_ctrl_pic_conf_ifg_i   <= (others => '0');
+  regs_towb_ep.inj_ctrl_pic_conf_sel_i   <= (others => '0');
+  regs_towb_ep.inj_ctrl_pic_conf_valid_i <= '0';
+  regs_towb_ep.inj_ctrl_pic_mode_id_i    <= (others => '0');
+  regs_towb_ep.inj_ctrl_pic_mode_valid_i <= '0';
+  regs_towb_ep.inj_ctrl_pic_ena_i        <= '0';
 
 -------------------------------------------------------------------------------
 -- DMTD phase meter
@@ -830,7 +818,9 @@ begin
         clk_a_i    => phy_ref_clk_i,
         clk_b_i    => phy_rx_clk_i,
         clk_dmtd_i => clk_dmtd_i,
-        rst_n_i    => rst_n_i,
+
+        rst_sys_n_i  => rst_sys_n_i,
+        rst_dmtd_n_i => rst_dmtd_n_i,
 
         en_i           => r_dmcr_en,
         navg_i         => r_dmcr_n_avg,
@@ -845,7 +835,7 @@ begin
     p_dmtd_update : process(clk_sys_i)
     begin
       if rising_edge(clk_sys_i) then
-        if rst_n_i = '0' then
+        if rst_sys_n_i = '0' then
           validity_cntr              <= (others => '0');
           regs_towb_ep.dmsr_ps_rdy_i <= '0';
         else
@@ -879,6 +869,7 @@ begin
   gen_without_dmtd : if(not g_with_dmtd) generate
     regs_towb_ep.dmsr_ps_rdy_i <= '0';
     regs_towb_ep.dmsr_ps_val_i <= (others => 'X');
+    regs_towb_dmtd             <= c_ep_in_registers_init_value;
   end generate gen_without_dmtd;
 
   dvalid_tx <= snk_cyc_i and snk_stb_i and link_ok;
@@ -887,10 +878,10 @@ begin
   gen_leds : if g_with_leds generate
     U_Led_Ctrl : ep_leds_controller
       generic map (
-        g_blink_period_log2 => 20)
+        g_blink_period_log2 => 22)
       port map (
         clk_sys_i   => clk_sys_i,
-        rst_n_i     => rst_n_i,
+        rst_n_i     => rst_sys_n_i,
         dvalid_tx_i => dvalid_tx,
         dvalid_rx_i => dvalid_rx,
         link_ok_i   => link_ok,
@@ -899,7 +890,7 @@ begin
   end generate gen_leds;
 
   -------------------------- TRU stuff -----------------------------------
-  link_up_o <= link_ok;                 -- indicates that link is IP
+  link_up_o <= link_ok;                 -- indicates that link is UP
 
   pfilter_pclass_o <= pfilter_pclass;
   pfilter_done_o   <= pfilter_done;
@@ -913,7 +904,7 @@ begin
   p_ep_ctrl : process(clk_sys_i)
   begin
     if rising_edge(clk_sys_i) then
-      if rst_n_i = '0' then
+      if rst_sys_n_i = '0' then
         ep_ctrl <= '1';
       else
         ep_ctrl <= not link_kill_i;
@@ -958,7 +949,7 @@ begin
       g_sync_edge => "negative")
     port map (
       clk_i    => clk_sys_i,
-      rst_n_i  => rst_n_i,
+      rst_n_i  => rst_sys_n_i,
       data_i   => txpcs_timestamp_trigger_p_a,
       synced_o => open,
       npulse_o => open,
@@ -969,7 +960,7 @@ begin
       g_sync_edge => "negative")
     port map (
       clk_i    => clk_sys_i,
-      rst_n_i  => rst_n_i,
+      rst_n_i  => rst_sys_n_i,
       data_i   => rxpcs_timestamp_trigger_p_a,
       synced_o => open,
       npulse_o => open,
@@ -993,6 +984,11 @@ begin
 --   TRIG0(17    downto  16) <= phy_rx_k_i;
 --   TRIG0(              18) <= phy_rx_enc_err_i;
 --   TRIG0(23    downto  19) <= phy_rx_bitslide_i;
+
+  -- Drive unsued GMII outputs
+  gmii_txd_o   <= (others => '0');
+  gmii_tx_en_o <= '0';
+  gmii_tx_er_o <= '0';
 
 end syn;
 

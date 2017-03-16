@@ -15,5 +15,6 @@ doc/
 *.o
 *.bin
 *.elf
+*.ucdb
 Makefile
 *_bd.bmm

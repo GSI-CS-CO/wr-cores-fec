@@ -16,6 +16,12 @@
 -- Copyright (c) 2013 CERN BE-CO-HT.
 -- Licensed under LGPL 2.1.
 -------------------------------------------------------------------------------
+-- Revisions  :
+-- Date        Version  Author                Description
+-- 2012-11-02  1.0      Tomasz Wlostowski     Created
+-- 2016-03-30  2.0      Maciej Lipinski       made B-train backward compatible 
+--                                            & debugged
+-------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -47,7 +53,12 @@ entity xtx_streamer is
     -- Transmission timeout (in clk_sys_i cycles), after which the contents
     -- of TX buffer are sent regardless of the amount of data that is currently
     -- stored in the buffer, so that data in the buffer does not get stuck.
-    g_tx_timeout : integer := 1024
+    g_tx_timeout : integer := 1024;
+    
+    -- DO NOT USE unless you know what you are doing
+    -- legacy stuff: the streamers initially used in Btrain did not check/insert the escape
+    -- code. This is justified if only one block of a known number of words is sent/expected
+    g_escape_code_disable : boolean := FALSE
     );
 
   port (
@@ -91,16 +102,17 @@ entity xtx_streamer is
 
     -- Last signal. Can be used to indicate the last data word in a larger
     -- block of samples (see documentation for more details).
-    tx_last_i : in std_logic := '1';
+    tx_last_p1_i : in std_logic := '1';
 
     -- Flush input. When asserted, the streamer will immediatly send out all
     -- the data that is stored in its TX buffer, ignoring g_tx_timeout.
-    tx_flush_i : in std_logic := '0';
+    tx_flush_p1_i : in std_logic := '0';
 
     -- Reset sequence number. When asserted, the internal sequence number
     -- generator used to detect loss of frames is reset to 0. Advanced feature.
     tx_reset_seq_i : in std_logic := '0';
-
+    -- successfully sent streamer frame
+    tx_frame_p1_o : out std_logic;
     ---------------------------------------------------------------------------
     -- Configuration
     ---------------------------------------------------------------------------
@@ -177,7 +189,7 @@ architecture rtl of xtx_streamer is
       tag_valid_o     : out std_logic);
   end component;
 
-  type t_tx_state is (IDLE, SOF, ETH_HEADER, SUBFRAME_HEADER, PAYLOAD, CRC_WORD, PADDING, EOF);
+  type t_tx_state is (IDLE, SOF, ETH_HEADER, FRAME_SEQ_ID, SUBFRAME_HEADER, PAYLOAD, CRC_WORD, PADDING, EOF);
 
   constant c_min_packet_size : integer := 32;
 
@@ -189,8 +201,9 @@ architecture rtl of xtx_streamer is
   signal tx_fifo_q, tx_fifo_d                                              : std_logic_vector(g_data_width downto 0);
   signal tx_fifo_valid                                                     : std_logic;
   signal state                                                             : t_tx_state;
-  signal seq_no                                                            : unsigned(14 downto 0);
-  signal count, ser_count                                                  : unsigned(7 downto 0);
+  signal seq_no, count                                                     : unsigned(14 downto 0);
+  signal ser_count                                                         : unsigned(7 downto 0);
+  signal word_count                                                        : unsigned(11 downto 0); --2^12 = 4096*2 bytes (can accommodate jambo frame)
   signal total_words                                                       : unsigned(10 downto 0);
 
   signal timeout_counter : unsigned(11 downto 0);
@@ -212,9 +225,10 @@ architecture rtl of xtx_streamer is
   signal tag_valid, tag_valid_latched : std_logic;
 
   signal reset_dly : std_logic;
-  
+  signal rst : std_logic;
 begin  -- rtl
   
+  rst <= not rst_n_i;
   U_tx_crc_generator : gc_crc_gen
     generic map (
       g_polynomial              => x"1021",
@@ -226,12 +240,13 @@ begin  -- rtl
       g_registered_match_output => false,
       g_registered_crc_output   => false)
     port map (
-      clk_i  => clk_sys_i,
-      rst_i  => crc_reset,
-      en_i   => crc_en_masked,
-      data_i => fsm_out.data,
-      half_i => '0',
-      crc_o  => crc_value);
+      clk_i     => clk_sys_i,
+      rst_i     => crc_reset,
+      restart_i => '0',
+      en_i      => crc_en_masked,
+      data_i    => fsm_out.data,
+      half_i    => '0',
+      crc_o     => crc_value);
 
   crc_en_masked <= crc_en and fsm_out.dvalid;
 
@@ -253,25 +268,34 @@ begin  -- rtl
   fab_src.sof <= fsm_out.sof;
   fab_src.eof <= fsm_out.eof;
 
-  U_Insert_Escape : gc_escape_inserter
-    generic map (
-      g_data_width  => 16,
-      g_escape_code => x"cafe")
-    port map (
-      clk_i             => clk_sys_i,
-      rst_n_i           => rst_n_i,
-      d_i               => fsm_out.data,
-      d_insert_enable_i => fsm_escape_enable,
-      d_escape_i        => fsm_escape,
-      d_valid_i         => fsm_out.dvalid,
-      d_req_o           => fsm_out.dreq,
+  
+  gen_escape: if (g_escape_code_disable = FALSE) generate
+    U_Insert_Escape : gc_escape_inserter
+      generic map (
+        g_data_width  => 16,
+        g_escape_code => x"cafe")
+      port map (
+        clk_i             => clk_sys_i,
+        rst_n_i           => rst_n_i,
+        d_i               => fsm_out.data,
+        d_insert_enable_i => fsm_escape_enable,
+        d_escape_i        => fsm_escape,
+        d_valid_i         => fsm_out.dvalid,
+        d_req_o           => fsm_out.dreq,
 
-      d_o       => fab_src.data,
-      d_valid_o => fab_src.dvalid,
-      d_req_i   => fab_src.dreq);
+        d_o       => fab_src.data,
+        d_valid_o => fab_src.dvalid,
+        d_req_i   => fab_src.dreq);
+  end generate gen_escape;
+  gen_no_escape: if (g_escape_code_disable = TRUE) generate
+    fab_src.data   <= fsm_out.data;
+    fab_src.dvalid <= fsm_out.dvalid;
+    fsm_out.dreq   <= fab_src.dreq;
+  end generate gen_no_escape;
+
 
   tx_fifo_we <= tx_valid_i and not tx_fifo_full;
-  tx_fifo_d  <= tx_last_i & tx_data_i;
+  tx_fifo_d  <= tx_last_p1_i & tx_data_i;
 
   U_TX_Buffer : generic_sync_fifo
     generic map (
@@ -328,9 +352,9 @@ begin  -- rtl
       if rst_n_i = '0' then
         buf_frame_count <= (others => '0');
       else
-        if(tx_fifo_we = '1' and tx_last_i = '1' and (tx_fifo_rd = '0' or tx_fifo_last = '0')) then
+        if(tx_fifo_we = '1' and tx_last_p1_i = '1' and (tx_fifo_rd = '0' or tx_fifo_last = '0')) then
           buf_frame_count <= buf_frame_count+ 1;
-        elsif((tx_fifo_we = '0' or tx_last_i = '0') and (tx_fifo_rd = '1' and tx_fifo_last = '1')) then
+        elsif((tx_fifo_we = '0' or tx_last_p1_i = '0') and (tx_fifo_rd = '1' and tx_fifo_last = '1')) then
           buf_frame_count <= buf_frame_count - 1;
         end if;
       end if;
@@ -378,7 +402,7 @@ begin  -- rtl
         tx_flush_latched <= '0';
       else
         if(state = IDLE) then
-          tx_flush_latched <= tx_flush_i or tx_timeout_hit;
+          tx_flush_latched <= tx_flush_p1_i or tx_timeout_hit;
         else
           tx_flush_latched <= '0';
         end if;
@@ -396,8 +420,9 @@ begin  -- rtl
         fsm_out.dvalid <= '0';
         count          <= (others => '0');
         seq_no         <= (others => '0');
---        tx_fifo_rd     <= '0';
+        word_count     <= (others => '0');
         crc_reset      <= '1';
+        tx_frame_p1_o     <= '0';
       else
         if(tx_reset_seq_i = '1') then
           seq_no <= (others => '0');
@@ -405,11 +430,12 @@ begin  -- rtl
 
         case state is
           when IDLE =>
-            crc_en      <= '0';
-            crc_reset   <= '0';
-            fsm_out.eof <= '0';
+            crc_en         <= '0';
+            crc_reset      <= '0';
+            fsm_out.eof    <= '0';
+            tx_frame_p1_o  <= '0';
 
-            if(fsm_out.dreq = '1' and (tx_flush_latched = '1' or tx_flush_i = '1' or tx_threshold_hit = '1')) then
+            if(fsm_out.dreq = '1' and (tx_flush_latched = '1' or tx_flush_p1_i = '1' or tx_threshold_hit = '1')) then
               state       <= SOF;
               fsm_out.sof <= '1';
             end if;
@@ -422,10 +448,11 @@ begin  -- rtl
             ser_count   <= (others => '0');
             state       <= ETH_HEADER;
             count       <= (others => '0');
+            word_count  <= (others => '0');
 
           when ETH_HEADER =>
             if(fsm_out.dreq = '1') then
-              case count is
+              case count(7 downto 0) is
                 when x"00" =>
                   fsm_out.data <= cfg_mac_target_i(47 downto 32);
                   count        <= count + 1;
@@ -452,8 +479,8 @@ begin  -- rtl
                   count        <= count + 1;
                 when x"08" =>
                   fsm_out.data <= tag_cycles(15 downto 0);
-                  count        <= (others => '0');
-                  state        <= SUBFRAME_HEADER;
+                  count        <= count + 1;
+                  state        <= FRAME_SEQ_ID;
                 when others =>
                   fsm_out.data <= (others => 'X');
                   count        <= (others => 'X');
@@ -462,7 +489,21 @@ begin  -- rtl
             else
               fsm_out.dvalid <= '0';
             end if;
-            
+          when FRAME_SEQ_ID =>
+            if(fsm_out.dreq = '1') then
+              fsm_out.data      <= '1' & std_logic_vector(seq_no);
+              seq_no            <= seq_no + 1;
+              count             <= "000" & x"001";
+              fsm_out.dvalid    <= '1';
+              fsm_escape        <= '0';
+              fsm_escape_enable <= '1';
+              crc_en            <= '1';
+              crc_reset         <= '0';
+              state             <= PAYLOAD;
+            else
+              fsm_out.dvalid    <= '0';
+            end if;
+          
           when SUBFRAME_HEADER =>
             crc_en    <= '1';
             crc_reset <= '0';
@@ -471,8 +512,8 @@ begin  -- rtl
               fsm_out.dvalid    <= '1';
               fsm_escape        <= '1';
               fsm_escape_enable <= '1';
-              fsm_out.data      <= '1' & std_logic_vector(seq_no);
-              seq_no            <= seq_no + 1;
+              fsm_out.data      <= '1' & std_logic_vector(count);
+              count             <= count + 1;
               state             <= PAYLOAD;
             else
               fsm_out.dvalid <= '0';
@@ -489,10 +530,10 @@ begin  -- rtl
               end if;
 
               if(ser_count = g_data_width/16-1) then
-                count     <= count + 1;
-                ser_count <= (others => '0');
+                word_count   <= word_count + 1;
+                ser_count    <= (others => '0');
               else
-                ser_count <= ser_count + 1;
+                ser_count    <= ser_count + 1;
               end if;
 
               fsm_out.data   <= tx_fifo_q((to_integer(ser_count) + 1)* 16 -1 downto to_integer(ser_count) * 16);
@@ -512,23 +553,22 @@ begin  -- rtl
 
               crc_reset <= '1';
 
-              if(tx_fifo_empty = '1' or count >= g_tx_max_words_per_frame) then
+              if(tx_fifo_empty = '1' or word_count >= g_tx_max_words_per_frame) then
                 state <= PADDING;
               else
                 state <= SUBFRAME_HEADER;
               end if;
             end if;
-            
+
           when PADDING =>
             if(fsm_out.dreq = '1') then
               fsm_escape     <= '1';
               fsm_out.dvalid <= '1';
-              fsm_out.data   <= x"0bad";
-
+              fsm_out.data   <= x"0bad"; 
               if(total_words >= c_min_packet_size) then
                 state <= EOF;
               end if;
-
+              crc_reset <= '0';
             else
               fsm_out.dvalid <= '0';
               fsm_out.data   <= (others => 'X');
@@ -538,6 +578,7 @@ begin  -- rtl
             fsm_out.dvalid <= '0';
             if(fsm_out.dreq = '1') then
               fsm_out.eof <= '1';
+              tx_frame_p1_o  <= '1';
               state       <= IDLE;
             end if;
         end case;

@@ -2,12 +2,53 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 library work;
-use work.genram_pkg.all;
-use work.wishbone_pkg.all;
-use work.sysc_wbgen2_pkg.all;
-use work.wr_fabric_pkg.all;
+use work.endpoint_pkg.all;
 
 package wr_xilinx_pkg is
+
+  component xwrc_platform_xilinx is
+    generic (
+      g_fpga_family               : string  := "spartan6";
+      g_with_external_clock_input : boolean := FALSE;
+      g_use_default_plls          : boolean := TRUE;
+      g_simulation                : integer := 0);
+    port (
+      areset_n_i            : in  std_logic             := '1';
+      clk_10m_ext_i         : in  std_logic             := '0';
+      clk_125m_gtp_p_i      : in  std_logic;
+      clk_125m_gtp_n_i      : in  std_logic;
+      clk_20m_vcxo_i        : in  std_logic             := '0';
+      clk_125m_pllref_i     : in  std_logic             := '0';
+      clk_62m5_dmtd_i       : in  std_logic             := '0';
+      clk_dmtd_locked_i     : in  std_logic             := '1';
+      clk_62m5_sys_i        : in  std_logic             := '0';
+      clk_sys_locked_i      : in  std_logic             := '1';
+      clk_125m_ref_i        : in  std_logic             := '0';
+      clk_125m_ext_i        : in  std_logic             := '0';
+      clk_ext_locked_i      : in  std_logic             := '1';
+      clk_ext_stopped_i     : in  std_logic             := '0';
+      clk_ext_rst_o         : out std_logic;
+      sfp_txn_o             : out std_logic;
+      sfp_txp_o             : out std_logic;
+      sfp_rxn_i             : in  std_logic;
+      sfp_rxp_i             : in  std_logic;
+      sfp_tx_fault_i        : in  std_logic             := '0';
+      sfp_los_i             : in  std_logic             := '0';
+      sfp_tx_disable_o      : out std_logic;
+      clk_62m5_sys_o        : out std_logic;
+      clk_125m_ref_o        : out std_logic;
+      clk_62m5_dmtd_o       : out std_logic;
+      pll_locked_o          : out std_logic;
+      clk_10m_ext_o         : out std_logic;
+      phy8_o                : out t_phy_8bits_to_wrc;
+      phy8_i                : in  t_phy_8bits_from_wrc  := c_dummy_phy8_from_wrc;
+      phy16_o               : out t_phy_16bits_to_wrc;
+      phy16_i               : in  t_phy_16bits_from_wrc := c_dummy_phy16_from_wrc;
+      ext_ref_mul_o         : out std_logic;
+      ext_ref_mul_locked_o  : out std_logic;
+      ext_ref_mul_stopped_o : out std_logic;
+      ext_ref_rst_i         : in  std_logic             := '0');
+  end component xwrc_platform_xilinx;
 
   component wr_gtp_phy_spartan6
     generic (
@@ -16,7 +57,7 @@ package wr_xilinx_pkg is
       g_simulation : integer := 0);
     port (
       gtp_clk_i          : in  std_logic;
-      ch0_ref_clk_i      : in  std_logic := '0';
+      ch0_ref_clk_i      : in  std_logic                    := '0';
       ch0_tx_data_i      : in  std_logic_vector(7 downto 0) := "00000000";
       ch0_tx_k_i         : in  std_logic                    := '0';
       ch0_tx_disparity_o : out std_logic;
@@ -26,10 +67,10 @@ package wr_xilinx_pkg is
       ch0_rx_k_o         : out std_logic;
       ch0_rx_enc_err_o   : out std_logic;
       ch0_rx_bitslide_o  : out std_logic_vector(3 downto 0);
-      ch0_rst_i          : in  std_logic := '0';
-      ch0_loopen_i       : in  std_logic := '0';
-      ch0_loopen_vec_i   : in  std_logic_vector(2 downto 0) := (others=>'0');
-      ch0_tx_prbs_sel_i  : in  std_logic_vector(2 downto 0) := (others=>'0');
+      ch0_rst_i          : in  std_logic                    := '0';
+      ch0_loopen_i       : in  std_logic                    := '0';
+      ch0_loopen_vec_i   : in  std_logic_vector(2 downto 0) := (others => '0');
+      ch0_tx_prbs_sel_i  : in  std_logic_vector(2 downto 0) := (others => '0');
       ch0_rdy_o          : out std_logic;
       ch1_ref_clk_i      : in  std_logic;
       ch1_tx_data_i      : in  std_logic_vector(7 downto 0) := "00000000";
@@ -43,8 +84,8 @@ package wr_xilinx_pkg is
       ch1_rx_bitslide_o  : out std_logic_vector(3 downto 0);
       ch1_rst_i          : in  std_logic                    := '0';
       ch1_loopen_i       : in  std_logic                    := '0';
-      ch1_loopen_vec_i   : in  std_logic_vector(2 downto 0) := (others=>'0');
-      ch1_tx_prbs_sel_i  : in  std_logic_vector(2 downto 0) := (others=>'0');
+      ch1_loopen_vec_i   : in  std_logic_vector(2 downto 0) := (others => '0');
+      ch1_tx_prbs_sel_i  : in  std_logic_vector(2 downto 0) := (others => '0');
       ch1_rdy_o          : out std_logic;
       pad_txn0_o         : out std_logic;
       pad_txp0_o         : out std_logic;

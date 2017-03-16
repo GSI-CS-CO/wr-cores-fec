@@ -6,7 +6,7 @@
 -- Author     : Grzegorz Daniluk
 -- Company    : Elproma
 -- Created    : 2011-02-02
--- Last update: 2014-07-15
+-- Last update: 2017-02-01
 -- Platform   : FPGA-generics
 -- Standard   : VHDL
 -------------------------------------------------------------------------------
@@ -81,7 +81,12 @@ entity xwr_core is
     g_aux_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
     g_softpll_enable_debugger   : boolean                        := false;
     g_vuart_fifo_size           : integer                        := 1024;
-    g_pcs_16bit                 : boolean                        := false);
+    g_pcs_16bit                 : boolean                        := false;
+    g_records_for_phy           : boolean                        := false;
+    g_diag_id                   : integer                        := 0;
+    g_diag_ver                  : integer                        := 0;
+    g_diag_ro_size              : integer                        := 0;
+    g_diag_rw_size              : integer                        := 0);
   port(
     ---------------------------------------------------------------------------
     -- Clocks/resets
@@ -121,7 +126,9 @@ entity xwr_core is
     dac_dpll_load_p1_o : out std_logic;
     dac_dpll_data_o    : out std_logic_vector(15 downto 0);
 
+    -----------------------------------------
     -- PHY I/f
+    -----------------------------------------
     phy_ref_clk_i : in std_logic;
 
     phy_tx_data_o        : out std_logic_vector(f_pcs_data_width(g_pcs_16bit)-1 downto 0);
@@ -143,6 +150,14 @@ entity xwr_core is
     phy_sfp_tx_fault_i   : in std_logic := '0';
     phy_sfp_los_i        : in std_logic := '0';
     phy_sfp_tx_disable_o : out std_logic;
+    -----------------------------------------
+    -- PHY I/f - record-based
+    -- selection done with g_records_for_phy
+    -----------------------------------------
+    phy8_o               : out t_phy_8bits_from_wrc;
+    phy8_i               : in  t_phy_8bits_to_wrc  := c_dummy_phy8_to_wrc;
+    phy16_o              : out t_phy_16bits_from_wrc;
+    phy16_i              : in  t_phy_16bits_to_wrc := c_dummy_phy16_to_wrc;
    
     -----------------------------------------
     --GPIO
@@ -228,8 +243,10 @@ entity xwr_core is
     pps_p_o              : out std_logic;
     pps_led_o            : out std_logic;
 
-    dio_o       : out std_logic_vector(3 downto 0);
     rst_aux_n_o : out std_logic;
+
+    aux_diag_i    : in  t_generic_word_array(g_diag_ro_size-1 downto 0) := (others =>(others=>'0'));
+    aux_diag_o    : out t_generic_word_array(g_diag_rw_size-1 downto 0);
 
     link_ok_o : out std_logic
     );
@@ -254,7 +271,13 @@ begin
       g_aux_sdb                   => g_aux_sdb,
       g_softpll_enable_debugger   => g_softpll_enable_debugger,
       g_vuart_fifo_size           => g_vuart_fifo_size,
-      g_pcs_16bit                 => g_pcs_16bit)
+      g_pcs_16bit                 => g_pcs_16bit,
+      g_records_for_phy           => g_records_for_phy,
+      g_diag_id                   => g_diag_id,
+      g_diag_ver                  => g_diag_ver,
+      g_diag_ro_size              => g_diag_ro_size,
+      g_diag_rw_size              => g_diag_rw_size
+      )
     port map(
       clk_sys_i     => clk_sys_i,
       clk_dmtd_i    => clk_dmtd_i,
@@ -291,6 +314,11 @@ begin
       phy_sfp_tx_fault_i   => phy_sfp_tx_fault_i,
       phy_sfp_los_i        => phy_sfp_los_i,
       phy_sfp_tx_disable_o => phy_sfp_tx_disable_o,
+
+      phy8_o     => phy8_o,
+      phy8_i     => phy8_i,
+      phy16_o    => phy16_o,
+      phy16_i    => phy16_i,
 
       led_act_o  => led_act_o,
       led_link_o => led_link_o,
@@ -380,10 +408,12 @@ begin
       pps_p_o              => pps_p_o,
       pps_led_o            => pps_led_o,
 
-      dio_o       => dio_o,
       rst_aux_n_o => rst_aux_n_o,
 
-      link_ok_o => link_ok_o
+      link_ok_o => link_ok_o,
+
+      aux_diag_i => aux_diag_i,
+      aux_diag_o => aux_diag_o
       );
 
   timestamps_o.port_id(5) <= '0';

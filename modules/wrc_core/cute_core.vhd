@@ -5,40 +5,40 @@
 -- Author     : Grzegorz Daniluk
 -- Company    : Elproma
 -- Created    : 2011-02-02
--- Last update: 2014-07-15
+-- Last update: 2017-03-10
 -- Platform   : FPGA-generics
 -- Standard   : VHDL
 -------------------------------------------------------------------------------
 -- Description:
--- WR PTP Core is a HDL module implementing a complete gigabit Ethernet 
--- interface (MAC + PCS + PHY) with integrated PTP slave ordinary clock 
--- compatible with White Rabbit protocol. It performs subnanosecond clock 
--- synchronization via WR protocol and also acts as an Ethernet "gateway", 
+-- WR PTP Core is a HDL module implementing a complete gigabit Ethernet
+-- interface (MAC + PCS + PHY) with integrated PTP slave ordinary clock
+-- compatible with White Rabbit protocol. It performs subnanosecond clock
+-- synchronization via WR protocol and also acts as an Ethernet "gateway",
 -- providing access to TX/RX interfaces of the built-in WR MAC.
 --
 -- Starting from version 2.0 all modules are interconnected with pipelined
--- wishbone interface (using wb crossbars). Separate pipelined wishbone bus is 
--- used for passing packets between Endpoint, Mini-NIC and External 
+-- wishbone interface (using wb crossbars). Separate pipelined wishbone bus is
+-- used for passing packets between Endpoint, Mini-NIC and External
 -- MAC interface.
 -------------------------------------------------------------------------------
 --
 -- Copyright (c) 2011, 2012 Elproma Elektronika
--- Copyright (c) 2012, 2013 CERN
+-- Copyright (c) 2012, 2017 CERN
 --
--- This source file is free software; you can redistribute it   
--- and/or modify it under the terms of the GNU Lesser General   
--- Public License as published by the Free Software Foundation; 
--- either version 2.1 of the License, or (at your option) any   
--- later version.                                               
+-- This source file is free software; you can redistribute it
+-- and/or modify it under the terms of the GNU Lesser General
+-- Public License as published by the Free Software Foundation;
+-- either version 2.1 of the License, or (at your option) any
+-- later version.
 --
--- This source is distributed in the hope that it will be       
--- useful, but WITHOUT ANY WARRANTY; without even the implied   
--- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR      
--- PURPOSE.  See the GNU Lesser General Public License for more 
--- details.                                                     
+-- This source is distributed in the hope that it will be
+-- useful, but WITHOUT ANY WARRANTY; without even the implied
+-- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+-- PURPOSE.  See the GNU Lesser General Public License for more
+-- details.
 --
--- You should have received a copy of the GNU Lesser General    
--- Public License along with this source; if not, download it   
+-- You should have received a copy of the GNU Lesser General
+-- Public License along with this source; if not, download it
 -- from http://www.gnu.org/licenses/lgpl-2.1.html
 --
 -------------------------------------------------------------------------------
@@ -47,10 +47,12 @@
 -- 2011-02-02  1.0      greg.d          Created
 -- 2011-10-25  2.0      greg.d          Redesigned and wishbonized
 -- 2012-03-05  3.0      wterpstra       Added SDB descriptors
--- 2016-08-20  4.0      hongming        Add wb & wbf interface
+-- 2017-03-20  4.0      hongming        Add wb & wbf interface
 -------------------------------------------------------------------------------
 
+
 -- Memory map:
+
 -- Master interconnect:
 --  0x00000000: I/D Memory
 --  0x00020000: Peripheral interconnect
@@ -70,6 +72,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.wrcore_pkg.all;
+use work.gencores_pkg.all;
 use work.genram_pkg.all;
 use work.wishbone_pkg.all;
 use work.endpoint_pkg.all;
@@ -79,7 +82,7 @@ use work.softpll_pkg.all;
 
 entity cute_core is
   generic(
-    --if set to 1, then blocks in PCS use smaller calibration counter to speed 
+    --if set to 1, then blocks in PCS use smaller calibration counter to speed
     --up simulation
     g_simulation                : integer                        := 0;
     g_with_external_clock_input : boolean                        := true;
@@ -97,10 +100,14 @@ entity cute_core is
     g_etherbone_sdb             : t_sdb_device                   := c_wrc_periph3_sdb;
     g_ext_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
     g_aux_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
-    g_softpll_channels_config   : t_softpll_channel_config_array := c_softpll_default_channel_config;
     g_softpll_enable_debugger   : boolean                        := false;
     g_vuart_fifo_size           : integer                        := 1024;
-    g_pcs_16bit                 : boolean                        := false);
+    g_pcs_16bit                 : boolean                        := false;
+    g_records_for_phy           : boolean                        := false;
+    g_diag_id                   : integer                        := 0;
+    g_diag_ver                  : integer                        := 0;
+    g_diag_ro_size              : integer                        := 0;
+    g_diag_rw_size              : integer                        := 0);
   port(
     ---------------------------------------------------------------------------
     -- Clocks/resets
@@ -163,6 +170,12 @@ entity cute_core is
     phy_sfp_tx_fault_i   : in std_logic := '0';
     phy_sfp_los_i        : in std_logic := '0';
     phy_sfp_tx_disable_o : out std_logic;
+
+    -- PHY I/F record-based
+    phy8_o  : out t_phy_8bits_from_wrc;
+    phy8_i  : in  t_phy_8bits_to_wrc  := c_dummy_phy8_to_wrc;
+    phy16_o : out t_phy_16bits_from_wrc;
+    phy16_i : in  t_phy_16bits_to_wrc := c_dummy_phy16_to_wrc;
 
     -----------------------------------------
     --GPIO
@@ -335,23 +348,19 @@ entity cute_core is
     pps_p_o              : out std_logic;
     pps_led_o            : out std_logic;
 
-    dio_o       : out std_logic_vector(3 downto 0);
     rst_aux_n_o : out std_logic;
 
-    link_ok_o : out std_logic
+    link_ok_o : out std_logic;
+
+    -------------------------------------
+    -- DIAG to/from external modules
+    -------------------------------------
+    aux_diag_i : in  t_generic_word_array(g_diag_ro_size-1 downto 0) := (others=>(others=>'0'));
+    aux_diag_o : out t_generic_word_array(g_diag_rw_size-1 downto 0)
     );
 end cute_core;
 
 architecture struct of cute_core is
-
-  function f_int_to_bool(x : integer) return boolean is
-  begin
-    if(x /= 0) then
-      return true;
-    else
-      return false;
-    end if;
-  end f_int_to_bool;
 
   function f_choose_lm32_firmware_file return string is
   begin
@@ -378,14 +387,27 @@ architecture struct of cute_core is
     end if;
   end function;
 
+  -----------------------------------------------------------------------------
+  --Local resets for peripheral
+  -----------------------------------------------------------------------------
   signal rst_wrc_n : std_logic;
   signal rst_net_n : std_logic;
+
+  -----------------------------------------------------------------------------
+  --Local resets (resynced)
+  -----------------------------------------------------------------------------
+  signal rst_net_resync_ref_n   : std_logic;
+  signal rst_net_resync_ext_n   : std_logic;
+  signal rst_net_resync_dmtd_n  : std_logic;
+  signal rst_net_resync_rxclk_n : std_logic;
+  signal rst_net_resync_txclk_n : std_logic;
 
   -----------------------------------------------------------------------------
   --PPS generator
   -----------------------------------------------------------------------------
   signal s_pps_csync : std_logic;
   signal pps_valid   : std_logic;
+  signal ppsg_link_ok: std_logic;
 
   signal ppsg_wb_in  : t_wishbone_slave_in;
   signal ppsg_wb_out : t_wishbone_slave_out;
@@ -393,6 +415,8 @@ architecture struct of cute_core is
   -----------------------------------------------------------------------------
   --Timing system
   -----------------------------------------------------------------------------
+  signal phy_rx_clk  : std_logic;
+  signal phy_tx_clk  : std_logic;
   signal spll_wb_in  : t_wishbone_slave_in;
   signal spll_wb_out : t_wishbone_slave_out;
 
@@ -406,6 +430,8 @@ architecture struct of cute_core is
   signal ep_txtsu_stb, ep_txtsu_ack : std_logic;
   signal ep_led_link                : std_logic;
 
+  signal phy_rst : std_logic;
+
   constant c_mnic_memsize_log2 : integer := f_log2_size(g_dpram_size);
 
   -----------------------------------------------------------------------------
@@ -413,7 +439,6 @@ architecture struct of cute_core is
   -----------------------------------------------------------------------------
   signal mnic_mem_data_o : std_logic_vector(31 downto 0);
   signal mnic_mem_addr_o : std_logic_vector(c_mnic_memsize_log2-1 downto 0);
-  signal mnic_mem_data_i : std_logic_vector(31 downto 0);
   signal mnic_mem_wr_o   : std_logic;
   signal mnic_txtsu_ack  : std_logic;
   signal mnic_txtsu_stb  : std_logic;
@@ -422,7 +447,6 @@ architecture struct of cute_core is
   --Dual-port RAM
   -----------------------------------------------------------------------------
   signal dpram_wbb_i : t_wishbone_slave_in;
-  signal dpram_wbb_o : t_wishbone_slave_out;
 
   -----------------------------------------------------------------------------
   --WB Peripherials
@@ -548,7 +572,75 @@ architecture struct of cute_core is
   --signal TRIG3   : std_logic_vector(31 downto 0);
 begin
 
+  -----------------------------------------------------------------------------
+  -- PHY TX/RX clock selection based on generics
+  -----------------------------------------------------------------------------
+
+  GEN_16BIT_PHY_IF: if g_pcs_16bit and g_records_for_phy generate
+    phy_rx_clk <= phy16_i.rx_clk;
+    phy_tx_clk <= phy16_i.ref_clk;
+  end generate;
+
+  GEN_8BIT_PHY_IF: if not g_pcs_16bit and g_records_for_phy generate
+    phy_rx_clk <= phy8_i.rx_clk;
+    phy_tx_clk <= phy8_i.ref_clk;
+  end generate;
+
+  GEN_STD_PHY_IF: if not g_records_for_phy generate
+    phy_rx_clk <= phy_rx_rbclk_i;
+    phy_tx_clk <= phy_ref_clk_i;
+  end generate;
+
+  -----------------------------------------------------------------------------
+  -- Reset resync and distribution
+  -----------------------------------------------------------------------------
+
   rst_aux_n_o <= rst_net_n;
+
+  U_Sync_reset_refclk : gc_sync_ffs
+    generic map (
+      g_sync_edge => "positive")
+    port map (
+      clk_i    => clk_ref_i,
+      rst_n_i  => '1',
+      data_i   => rst_net_n,
+      synced_o => rst_net_resync_ref_n);
+
+  U_sync_reset_dmtd : gc_sync_ffs
+    generic map (
+      g_sync_edge => "positive")
+    port map (
+      clk_i    => clk_dmtd_i,
+      rst_n_i  => '1',
+      data_i   => rst_net_n,
+      synced_o => rst_net_resync_dmtd_n);
+
+  U_sync_reset_ext : gc_sync_ffs
+    generic map (
+      g_sync_edge => "positive")
+    port map (
+      clk_i    => clk_ext_i,
+      rst_n_i  => '1',
+      data_i   => rst_net_n,
+      synced_o => rst_net_resync_ext_n);
+
+  U_sync_reset_rxclk : gc_sync_ffs
+    generic map (
+      g_sync_edge => "positive")
+    port map (
+      clk_i    => phy_rx_clk,
+      rst_n_i  => '1',
+      data_i   => rst_net_n,
+      synced_o => rst_net_resync_rxclk_n);
+
+  U_sync_reset_txclk : gc_sync_ffs
+    generic map (
+      g_sync_edge => "positive")
+    port map (
+      clk_i    => phy_tx_clk,
+      rst_n_i  => '1',
+      data_i   => rst_net_n,
+      synced_o => rst_net_resync_txclk_n);
 
   -----------------------------------------------------------------------------
   -- PPS generator
@@ -563,12 +655,15 @@ begin
     port map(
       clk_ref_i => clk_ref_i,
       clk_sys_i => clk_sys_i,
-      clk_ext_i => clk_ext_i,
 
-      rst_n_i => rst_net_n,
+      rst_sys_n_i => rst_net_n,
+      rst_ref_n_i => rst_net_resync_ref_n,
 
       slave_i => ppsg_wb_in,
       slave_o => ppsg_wb_out,
+
+      -- used for fast masking of PPS output when link goes down
+      link_ok_i => ppsg_link_ok,
 
       -- Single-pulse PPS output for synchronizing endpoint to
       pps_in_i    => pps_ext_i,
@@ -581,11 +676,11 @@ begin
       tm_cycles_o     => tm_cycles_o,
       tm_time_valid_o => tm_time_valid_o
       );
+  ppsg_link_ok <= not phy_rst;
 
   -----------------------------------------------------------------------------
   -- Software PLL
   -----------------------------------------------------------------------------
-
   U_SOFTPLL : xwr_softpll_ng
     generic map(
       g_with_ext_clock_input => g_with_external_clock_input,
@@ -600,11 +695,14 @@ begin
       g_ref_clock_rate       => f_refclk_rate(g_pcs_16bit),
       g_ext_clock_rate       => 10000000)
     port map(
-      clk_sys_i => clk_sys_i,
-      rst_n_i   => rst_net_n,
+      clk_sys_i    => clk_sys_i,
+      rst_sys_n_i  => rst_net_n,
+      rst_ref_n_i  => rst_net_resync_ref_n,
+      rst_ext_n_i  => rst_net_resync_ext_n,
+      rst_dmtd_n_i => rst_net_resync_dmtd_n,
 
       -- Reference inputs (i.e. the RX clocks recovered by the PHYs)
-      clk_ref_i(0) => phy_rx_rbclk_i,
+      clk_ref_i(0) => phy_rx_clk,
       -- Feedback clocks (i.e. the outputs of the main or aux oscillator)
       clk_fb_i     => clk_fb,
       -- DMTD Offset clock
@@ -672,9 +770,10 @@ begin
     generic map (
       g_interface_mode      => PIPELINED,
       g_address_granularity => BYTE,
-      g_simulation          => f_int_to_bool(g_simulation),
+      g_simulation          => f_int2bool(g_simulation),
       g_tx_runt_padding     => g_tx_runt_padding,
       g_pcs_16bit           => g_pcs_16bit,
+      g_records_for_phy     => g_records_for_phy,
       g_rx_buffer_size      => g_rx_buffer_size,
       g_with_rx_buffer      => true,
       g_with_flow_control   => false,
@@ -690,11 +789,15 @@ begin
       clk_ref_i      => clk_ref_i,
       clk_sys_i      => clk_sys_i,
       clk_dmtd_i     => clk_dmtd_i,
-      rst_n_i        => rst_net_n,
+      rst_sys_n_i    => rst_net_n,
+      rst_ref_n_i    => rst_net_resync_ref_n,
+      rst_dmtd_n_i   => rst_net_resync_dmtd_n,
+      rst_txclk_n_i  => rst_net_resync_txclk_n,
+      rst_rxclk_n_i  => rst_net_resync_rxclk_n,
       pps_csync_p1_i => s_pps_csync,
       pps_valid_i    => pps_valid,
 
-      phy_rst_o            => phy_rst_o,
+      phy_rst_o            => phy_rst,
       phy_rdy_i            => phy_rdy_i,
       phy_loopen_o         => phy_loopen_o,
       phy_loopen_vec_o     => phy_loopen_vec_o,
@@ -712,6 +815,11 @@ begin
       phy_rx_k_i           => phy_rx_k_i,
       phy_rx_enc_err_i     => phy_rx_enc_err_i,
       phy_rx_bitslide_i    => phy_rx_bitslide_i,
+
+      phy8_o  => phy8_o,
+      phy8_i  => phy8_i,
+      phy16_o => phy16_o,
+      phy16_i => phy16_i,
 
       src_o => ep_src_out,
       src_i => ep_src_in,
@@ -738,6 +846,8 @@ begin
 
   tm_link_up_o <= ep_led_link;
 
+  phy_rst_o <= phy_rst;
+
   -----------------------------------------------------------------------------
   -- Mini-NIC
   -----------------------------------------------------------------------------
@@ -745,16 +855,12 @@ begin
     generic map (
       g_interface_mode       => PIPELINED,
       g_address_granularity  => BYTE,
-      g_memsize_log2         => f_log2_size(g_dpram_size),
+      g_tx_fifo_size         => 1024,
+      g_rx_fifo_size         => 2048,
       g_buffer_little_endian => false)
     port map (
       clk_sys_i => clk_sys_i,
       rst_n_i   => rst_net_n,
-
-      mem_data_o => mnic_mem_data_o,
-      mem_addr_o => mnic_mem_addr_o,
-      mem_data_i => mnic_mem_data_i,
-      mem_wr_o   => mnic_mem_wr_o,
 
       src_o => mux_snk_in(0),
       src_i => mux_snk_out(0),
@@ -777,9 +883,9 @@ begin
 
   -----------------------------------------------------------------------------
   -- LM32
-  -----------------------------------------------------------------------------  
+  -----------------------------------------------------------------------------
   LM32_CORE : xwb_lm32
-    generic map(g_profile => "medium_icache_debug")
+    generic map(g_profile => "medium_icache")
     port map(
       clk_sys_i => clk_sys_i,
       rst_n_i   => rst_wrc_n,
@@ -793,15 +899,16 @@ begin
 
   -----------------------------------------------------------------------------
   -- Dual-port RAM
-  -----------------------------------------------------------------------------  
+  -----------------------------------------------------------------------------
   DPRAM : xwb_dpram
     generic map(
       g_size                  => g_dpram_size,
-      g_lm32_ram              => true,
+      g_init_file             => g_dpram_initf,
+      g_must_have_init_file   => f_check_if_lm32_firmware_necessary,
       g_slave1_interface_mode => PIPELINED,
       g_slave2_interface_mode => PIPELINED,
       g_slave1_granularity    => BYTE,
-      g_slave2_granularity    => WORD)  
+      g_slave2_granularity    => WORD)
     port map(
       clk_sys_i => clk_sys_i,
       rst_n_i   => rst_n_i,
@@ -809,16 +916,15 @@ begin
       slave1_i => cbar_master_o(0),
       slave1_o => cbar_master_i(0),
       slave2_i => dpram_wbb_i,
-      slave2_o => dpram_wbb_o
+      slave2_o => open
       );
 
-  dpram_wbb_i.cyc                                 <= '1';
-  dpram_wbb_i.stb                                 <= '1';
-  dpram_wbb_i.adr(c_mnic_memsize_log2-1 downto 0) <= mnic_mem_addr_o;
-  dpram_wbb_i.sel                                 <= "1111";
-  dpram_wbb_i.we                                  <= mnic_mem_wr_o;
-  dpram_wbb_i.dat                                 <= mnic_mem_data_o;
-  mnic_mem_data_i                                 <= dpram_wbb_o.dat;
+  dpram_wbb_i.cyc <= '0';
+  dpram_wbb_i.stb <= '0';
+  dpram_wbb_i.adr <= (c_mnic_memsize_log2-1 downto 0 => '0', others=>'0'); --mnic_mem_addr_o;
+  dpram_wbb_i.sel <= "1111";
+  dpram_wbb_i.we  <= '0'; --mnic_mem_wr_o;
+  dpram_wbb_i.dat <= (others=>'0'); --mnic_mem_data_o;
 
   -----------------------------------------------------------------------------
   -- WB Peripherials
@@ -828,7 +934,11 @@ begin
       g_phys_uart       => g_phys_uart,
       g_virtual_uart    => g_virtual_uart,
       g_mem_words       => g_dpram_size,
-      g_vuart_fifo_size => g_vuart_fifo_size)
+      g_vuart_fifo_size => g_vuart_fifo_size,
+      g_diag_id         => g_diag_id,
+      g_diag_ver        => g_diag_ver,
+      g_diag_ro_size    => g_diag_ro_size,
+      g_diag_rw_size    => g_diag_rw_size)
     port map(
       clk_sys_i   => clk_sys_i,
       rst_n_i     => rst_n_i,
@@ -862,7 +972,10 @@ begin
 
       owr_pwren_o => owr_pwren_o,
       owr_en_o    => owr_en_o,
-      owr_i       => owr_i
+      owr_i       => owr_i,
+
+      diag_array_in  => aux_diag_i,
+      diag_array_out => aux_diag_o
       );
 
   U_Adapter : wb_slave_adapter
@@ -901,7 +1014,7 @@ begin
       g_wraparound  => true,
       g_layout      => c_layout,
       g_sdb_addr    => c_sdb_address
-      )  
+      )
     port map(
       clk_sys_i => clk_sys_i,
       rst_n_i   => rst_n_i,
@@ -1053,6 +1166,8 @@ begin
   --secbar_master_i(1).rty <= '0';
   --secbar_master_i(0).rty <= '0';
 
+
+
   -----------------------------------------------------------------------------
   -- WBP MUX
   -----------------------------------------------------------------------------
@@ -1068,7 +1183,7 @@ begin
       g_muxed_ports => 3)
     port map (
       clk_sys_i   => clk_sys_i,
-      rst_n_i     => rst_n_i,
+      rst_n_i     => rst_net_n,
       ep_src_o    => ep_snk_in,
       ep_src_i    => ep_snk_out,
       ep_snk_o    => ep_src_in,
@@ -1132,7 +1247,7 @@ begin
       g_muxed_ports => 2)
     port map (
       clk_sys_i   => clk_sys_i,
-      rst_n_i     => rst_n_i,
+      rst_n_i     => rst_net_n,
       ep_src_o    => ep_snk_in,
       ep_src_i    => ep_snk_out,
       ep_snk_o    => ep_src_in,
@@ -1179,7 +1294,7 @@ begin
   -- ts goes to minic
   mnic_txtsu_stb      <=  '1' when (ep_txtsu_stb = '1' and (ep_txtsu_frame_id  = x"0000")) else
                           '0';
-  
+
   ep_txtsu_ack <= txtsu_ack_i or mnic_txtsu_ack;
 
 end struct;

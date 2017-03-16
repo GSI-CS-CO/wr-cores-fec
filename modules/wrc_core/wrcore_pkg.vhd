@@ -13,6 +13,8 @@ package wrcore_pkg is
 
   function f_refclk_rate(pcs_16 : boolean) return integer;
 
+  type t_generic_word_array is array (natural range <>) of std_logic_vector(31 downto 0);
+
   ----------------------------------------------------------------------------- 
   --PPS generator
   -----------------------------------------------------------------------------
@@ -43,10 +45,11 @@ package wrcore_pkg is
     port (
       clk_ref_i       : in  std_logic;
       clk_sys_i       : in  std_logic;
-      clk_ext_i       : in  std_logic := '0';
-      rst_n_i         : in  std_logic;
+      rst_ref_n_i     : in  std_logic;
+      rst_sys_n_i     : in  std_logic;
       slave_i         : in  t_wishbone_slave_in;
       slave_o         : out t_wishbone_slave_out;
+      link_ok_i       : in  std_logic;
       pps_in_i        : in  std_logic;
       pps_csync_o     : out std_logic;
       pps_out_o       : out std_logic;
@@ -81,15 +84,12 @@ package wrcore_pkg is
     generic (
       g_interface_mode       : t_wishbone_interface_mode;
       g_address_granularity  : t_wishbone_address_granularity;
-      g_memsize_log2         : integer;
+      g_tx_fifo_size         : integer;
+      g_rx_fifo_size         : integer;
       g_buffer_little_endian : boolean);
     port (
       clk_sys_i           : in  std_logic;
       rst_n_i             : in  std_logic;
-      mem_data_o          : out std_logic_vector(31 downto 0);
-      mem_addr_o          : out std_logic_vector(g_memsize_log2-1 downto 0);
-      mem_data_i          : in  std_logic_vector(31 downto 0);
-      mem_wr_o            : out std_logic;
       src_o               : out t_wrf_source_out;
       src_i               : in  t_wrf_source_in;
       snk_o               : out t_wrf_sink_out;
@@ -195,7 +195,11 @@ package wrcore_pkg is
       g_virtual_uart    : boolean := false;
       g_cntr_period     : integer := 62500;
       g_mem_words       : integer := 16384;
-      g_vuart_fifo_size : integer := 1024
+      g_vuart_fifo_size : integer := 1024;
+      g_diag_id         : integer := 0;
+      g_diag_ver        : integer := 0;
+      g_diag_ro_size    : integer := 0;
+      g_diag_rw_size    : integer := 0
       );
     port(
       clk_sys_i   : in  std_logic;
@@ -226,7 +230,9 @@ package wrcore_pkg is
       uart_txd_o  : out std_logic;
       owr_pwren_o : out std_logic_vector(1 downto 0);
       owr_en_o    : out std_logic_vector(1 downto 0);
-      owr_i       : in  std_logic_vector(1 downto 0)
+      owr_i       : in  std_logic_vector(1 downto 0);
+      diag_array_in  : in  t_generic_word_array(g_diag_ro_size-1 downto 0);
+      diag_array_out : out t_generic_word_array(g_diag_rw_size-1 downto 0)
       );
   end component;
 
@@ -264,7 +270,10 @@ package wrcore_pkg is
       g_address_granularity  : t_wishbone_address_granularity);
     port (
       clk_sys_i       : in  std_logic;
-      rst_n_i         : in  std_logic;
+      rst_sys_n_i     : in  std_logic;
+      rst_ref_n_i     : in  std_logic;
+      rst_ext_n_i     : in  std_logic;
+      rst_dmtd_n_i    : in  std_logic;
       clk_ref_i       : in  std_logic_vector(g_num_ref_inputs-1 downto 0);
       clk_fb_i        : in  std_logic_vector(g_num_outputs-1 downto 0);
       clk_dmtd_i      : in  std_logic;
@@ -282,7 +291,6 @@ package wrcore_pkg is
       dac_out_load_o  : out std_logic;
       out_enable_i    : in  std_logic_vector(g_num_outputs-1 downto 0);
       out_locked_o    : out std_logic_vector(g_num_outputs-1 downto 0);
-      out_status_o    : out std_logic_vector(4*g_num_outputs-1 downto 0);
       slave_i         : in  t_wishbone_slave_in;
       slave_o         : out t_wishbone_slave_out;
       debug_o         : out std_logic_vector(5 downto 0);
@@ -311,7 +319,12 @@ package wrcore_pkg is
       g_aux_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
       g_softpll_enable_debugger   : boolean                        := false;
       g_vuart_fifo_size           : integer                        := 1024;
-      g_pcs_16bit                 : boolean                        := false);
+      g_pcs_16bit                 : boolean                        := false;
+      g_records_for_phy           : boolean                        := false;
+      g_diag_id                   : integer                        := 0;
+      g_diag_ver                  : integer                        := 0;
+      g_diag_ro_size              : integer                        := 0;
+      g_diag_rw_size              : integer                        := 0);
     port(
       clk_sys_i            : in std_logic;
       clk_dmtd_i           : in std_logic := '0';
@@ -329,7 +342,9 @@ package wrcore_pkg is
       dac_hpll_data_o      : out std_logic_vector(15 downto 0);
       dac_dpll_load_p1_o   : out std_logic;
       dac_dpll_data_o      : out std_logic_vector(15 downto 0);
-
+      -----------------------------------------
+      -- PHY I/f
+      -----------------------------------------
       phy_ref_clk_i        : in  std_logic                    := '0';
       phy_tx_data_o        : out std_logic_vector(f_pcs_data_width(g_pcs_16bit)-1 downto 0);
       phy_tx_k_o           : out std_logic_vector(f_pcs_k_width(g_pcs_16bit)-1 downto 0);
@@ -348,6 +363,14 @@ package wrcore_pkg is
       phy_sfp_tx_fault_i   : in std_logic := '0';
       phy_sfp_los_i        : in std_logic := '0';
       phy_sfp_tx_disable_o : out std_logic;
+      -----------------------------------------
+      -- PHY I/f - record-based
+      -- selection done with g_records_for_phy
+      -----------------------------------------
+      phy8_o  : out t_phy_8bits_from_wrc;
+      phy8_i  : in  t_phy_8bits_to_wrc  := c_dummy_phy8_to_wrc;
+      phy16_o : out t_phy_16bits_from_wrc;
+      phy16_i : in  t_phy_16bits_to_wrc := c_dummy_phy16_to_wrc;
 
       led_act_o  : out std_logic;
       led_link_o : out std_logic;
@@ -403,10 +426,12 @@ package wrcore_pkg is
       pps_p_o              : out std_logic;
       pps_led_o            : out std_logic;
 
-      dio_o       : out std_logic_vector(3 downto 0);
       rst_aux_n_o : out std_logic;
 
-      link_ok_o : out std_logic
+      link_ok_o : out std_logic;
+
+      aux_diag_i : in  t_generic_word_array(g_diag_ro_size-1 downto 0) := (others=>(others=>'0'));
+      aux_diag_o : out t_generic_word_array(g_diag_rw_size-1 downto 0)
       );
   end component;
 
@@ -429,7 +454,12 @@ package wrcore_pkg is
       g_aux_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
       g_softpll_enable_debugger   : boolean                        := false;
       g_vuart_fifo_size           : integer                        := 1024;
-      g_pcs_16bit                 : boolean                        := false);
+      g_pcs_16bit                 : boolean                        := false;
+      g_records_for_phy           : boolean                        := false;
+      g_diag_id                   : integer                        := 0;
+      g_diag_ver                  : integer                        := 0;
+      g_diag_ro_size              : integer                        := 0;
+      g_diag_rw_size              : integer                        := 0);
     port(
       ---------------------------------------------------------------------------
       -- Clocks/resets
@@ -469,7 +499,9 @@ package wrcore_pkg is
       dac_dpll_load_p1_o : out std_logic;
       dac_dpll_data_o    : out std_logic_vector(15 downto 0);
 
+      -----------------------------------------
       -- PHY I/f
+      -----------------------------------------
       phy_ref_clk_i : in std_logic;
 
       phy_tx_data_o      : out std_logic_vector(f_pcs_data_width(g_pcs_16bit)-1 downto 0);
@@ -491,6 +523,14 @@ package wrcore_pkg is
       phy_sfp_tx_fault_i   : in std_logic := '0';
       phy_sfp_los_i        : in std_logic := '0';
       phy_sfp_tx_disable_o : out std_logic;
+      -----------------------------------------
+      -- PHY I/f - record-based
+      -- selection done with g_records_for_phy
+      -----------------------------------------
+      phy8_o  : out t_phy_8bits_from_wrc;
+      phy8_i  : in  t_phy_8bits_to_wrc  := c_dummy_phy8_to_wrc;
+      phy16_o : out t_phy_16bits_from_wrc;
+      phy16_i : in  t_phy_16bits_to_wrc := c_dummy_phy16_to_wrc;
 
       -----------------------------------------
       --GPIO
@@ -613,14 +653,19 @@ package wrcore_pkg is
       pps_p_o              : out std_logic;
       pps_led_o            : out std_logic;
 
-      dio_o                : out std_logic_vector(3 downto 0);
-      rst_aux_n_o          : out std_logic;
+      rst_aux_n_o : out std_logic;
 
-      link_ok_o            : out std_logic
+      link_ok_o : out std_logic;
+
+      -------------------------------------
+      -- DIAG to/from external modules
+      -------------------------------------
+      aux_diag_i : in  t_generic_word_array(g_diag_ro_size-1 downto 0) := (others=>(others=>'0'));
+      aux_diag_o : out t_generic_word_array(g_diag_rw_size-1 downto 0)
       );
   end component;
 
-  component spec_serial_dac_arb is
+  component spec_serial_dac_arb
     generic(
       g_invert_sclk    : boolean;
       g_num_extra_bits : integer);        
@@ -636,221 +681,6 @@ package wrcore_pkg is
       dac_sclk_o  : out std_logic;
       dac_din_o   : out std_logic);
   end component;
-
-  component cute_serial_dac_arb is
-  generic(
-      g_invert_sclk    : boolean;
-      g_num_extra_bits : integer);
-  port(
-      clk_i     : in std_logic;
-      rst_n_i   : in std_logic;
-      val1_i    : in std_logic_vector(15 downto 0);
-      load1_i   : in std_logic;
-      val2_i    : in std_logic_vector(15 downto 0);
-      load2_i   : in std_logic;
-      dac_ldac_n_o : out std_logic;
-      dac_clr_n_o  : out std_logic;
-      dac_sync_n_o : out std_logic;
-      dac_sclk_o   : out std_logic;
-      dac_din_o    : out std_logic
-      );
-  end component;
-
-  component xcute_core is
-      generic(
-        g_simulation                : integer                        := 0;
-        g_phys_uart                 : boolean                        := true;
-        g_virtual_uart              : boolean                        := true;
-        g_with_external_clock_input : boolean                        := true;
-        g_aux_clks                  : integer                        := 0;
-        g_ep_rxbuf_size             : integer                        := 1024;
-        g_tx_runt_padding           : boolean                        := true;
-        g_dpram_initf               : string                         := "default";
-        g_dpram_size                : integer                        := 131072/4;  --in 32-bit words
-        g_interface_mode            : t_wishbone_interface_mode      := PIPELINED;
-        g_address_granularity       : t_wishbone_address_granularity := BYTE;
-        g_etherbone_enable          : boolean                        := true;
-        g_etherbone_sdb             : t_sdb_device                   := c_wrc_periph3_sdb;
-        g_ext_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
-        g_aux_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
-        g_softpll_enable_debugger   : boolean                        := false;
-        g_vuart_fifo_size           : integer                        := 1024;
-        g_pcs_16bit                 : boolean                        := false);
-      port(
-        ---------------------------------------------------------------------------
-        -- Clocks/resets
-        ---------------------------------------------------------------------------
-
-        -- system reference clock (any frequency <= f(clk_ref_i))
-        clk_sys_i : in std_logic;
-
-        -- DDMTD offset clock (125.x MHz)
-        clk_dmtd_i : in std_logic;
-
-        -- Timing reference (125 MHz)
-        clk_ref_i : in std_logic;
-
-        -- Aux clock (i.e. the FMC clock), which can be disciplined by the WR Core
-        clk_aux_i : in std_logic_vector(g_aux_clks-1 downto 0) := (others => '0');
-
-        -- External 10 MHz reference (cesium, GPSDO, etc.), used in Grandmaster mode
-        clk_ext_i : in std_logic := '0';
-
-        clk_ext_mul_i : in std_logic := '0';
-        clk_ext_mul_locked_i : in std_logic := '1';
-        clk_ext_stopped_i    : in  std_logic := '0';
-        clk_ext_rst_o        : out std_logic;
-
-        -- External PPS input (cesium, GPSDO, etc.), used in Grandmaster mode
-        pps_ext_i : in std_logic := '0';
-
-        rst_n_i : in std_logic;
-
-        -----------------------------------------
-        --Timing system
-        -----------------------------------------
-        dac_hpll_load_p1_o : out std_logic;
-        dac_hpll_data_o    : out std_logic_vector(15 downto 0);
-
-        dac_dpll_load_p1_o : out std_logic;
-        dac_dpll_data_o    : out std_logic_vector(15 downto 0);
-
-        -- PHY I/f
-        phy_ref_clk_i : in std_logic;
-
-        phy_tx_data_o        : out std_logic_vector(f_pcs_data_width(g_pcs_16bit)-1 downto 0);
-        phy_tx_k_o           : out std_logic_vector(f_pcs_k_width(g_pcs_16bit)-1 downto 0);
-        phy_tx_disparity_i   : in  std_logic;
-        phy_tx_enc_err_i     : in  std_logic;
-
-        phy_rx_data_i        : in std_logic_vector(f_pcs_data_width(g_pcs_16bit)-1 downto 0);
-        phy_rx_rbclk_i       : in std_logic;
-        phy_rx_k_i           : in std_logic_vector(f_pcs_k_width(g_pcs_16bit)-1 downto 0);
-        phy_rx_enc_err_i     : in std_logic;
-        phy_rx_bitslide_i    : in std_logic_vector(f_pcs_bts_width(g_pcs_16bit)-1 downto 0);
-
-        phy_rst_o            : out std_logic;
-        phy_rdy_i            : in  std_logic := '1';
-        phy_loopen_o         : out std_logic;
-        phy_loopen_vec_o     : out std_logic_vector(2 downto 0);
-        phy_tx_prbs_sel_o    : out std_logic_vector(2 downto 0);
-        phy_sfp_tx_fault_i   : in std_logic := '0';
-        phy_sfp_los_i        : in std_logic := '0';
-        phy_sfp_tx_disable_o : out std_logic;
-        
-        -----------------------------------------
-        --GPIO
-        -----------------------------------------
-        led_act_o  : out std_logic;
-        led_link_o : out std_logic;
-        scl_o      : out std_logic;
-        scl_i      : in  std_logic := '1';
-        sda_o      : out std_logic;
-        sda_i      : in  std_logic := '1';
-        sfp_scl_o  : out std_logic;
-        sfp_scl_i  : in  std_logic := '1';
-        sfp_sda_o  : out std_logic;
-        sfp_sda_i  : in  std_logic := '1';
-        sfp_det_i  : in  std_logic;
-        btn1_i     : in  std_logic := '1';
-        btn2_i     : in  std_logic := '1';
-        spi_sclk_o : out std_logic;
-        spi_ncs_o  : out std_logic;
-        spi_mosi_o : out std_logic;
-        spi_miso_i : in  std_logic := '0';
-
-        -----------------------------------------
-        --UART
-        -----------------------------------------
-        uart_rxd_i : in  std_logic := '0';
-        uart_txd_o : out std_logic;
-
-        -----------------------------------------
-        -- 1-wire
-        -----------------------------------------
-        owr_pwren_o : out std_logic_vector(1 downto 0);
-        owr_en_o    : out std_logic_vector(1 downto 0);
-        owr_i       : in  std_logic_vector(1 downto 0) := (others => '1');
-
-        -----------------------------------------
-        -- WB Slave interface
-        -----------------------------------------
-        slave_i : in  t_wishbone_slave_in := cc_dummy_slave_in;
-        slave_o : out t_wishbone_slave_out;
-
-        -----------------------------------------
-        --Etherbone WB interface
-        -----------------------------------------
-        etherbone_master_o : out t_wishbone_master_out;
-        etherbone_master_i : in  t_wishbone_master_in := cc_dummy_master_in;
-
-        -----------------------------------------
-        -- Etherbone Fabric I/F
-        -----------------------------------------
-        etherbone_src_o : out t_wrf_source_out;
-        etherbone_src_i : in  t_wrf_source_in := c_dummy_src_in;
-        etherbone_snk_o : out t_wrf_sink_out;
-        etherbone_snk_i : in  t_wrf_sink_in   := c_dummy_snk_in;
-
-        -----------------------------------------
-        --Ext WB interface
-        -----------------------------------------
-        ext_master_o : out t_wishbone_master_out;
-        ext_master_i : in  t_wishbone_master_in := cc_dummy_master_in;
-
-        -----------------------------------------
-        -- External Fabric I/F
-        -----------------------------------------
-        ext_src_o : out t_wrf_source_out;
-        ext_src_i : in  t_wrf_source_in := c_dummy_src_in;
-        ext_snk_o : out t_wrf_sink_out;
-        ext_snk_i : in  t_wrf_sink_in   := c_dummy_snk_in;
-        
-        -----------------------------------------
-        --aux Module
-        -----------------------------------------
-        aux_master_o : out t_wishbone_master_out;
-        aux_master_i : in  t_wishbone_master_in := cc_dummy_master_in;
-
-        -----------------------------------------
-        -- External Tx Timestamping I/F
-        -----------------------------------------
-        timestamps_o     : out t_txtsu_timestamp;
-        timestamps_ack_i : in  std_logic := '1';
-
-        -----------------------------------------
-        -- Pause Frame Control
-        -----------------------------------------
-        fc_tx_pause_req_i   : in  std_logic                     := '0';
-        fc_tx_pause_delay_i : in  std_logic_vector(15 downto 0) := x"0000";
-        fc_tx_pause_ready_o : out std_logic;
-
-        -----------------------------------------
-        -- Timecode/Servo Control
-        -----------------------------------------
-
-        tm_link_up_o         : out std_logic;
-        -- DAC Control
-        tm_dac_value_o       : out std_logic_vector(23 downto 0);
-        tm_dac_wr_o          : out std_logic_vector(g_aux_clks-1 downto 0);
-        -- Aux clock lock enable
-        tm_clk_aux_lock_en_i : in  std_logic_vector(g_aux_clks-1 downto 0) := (others => '0');
-        -- Aux clock locked flag
-        tm_clk_aux_locked_o  : out std_logic_vector(g_aux_clks-1 downto 0);
-        -- Timecode output
-        tm_time_valid_o      : out std_logic;
-        tm_tai_o             : out std_logic_vector(39 downto 0);
-        tm_cycles_o          : out std_logic_vector(27 downto 0);
-        -- 1PPS output
-        pps_p_o              : out std_logic;
-        pps_led_o            : out std_logic;
-
-        dio_o       : out std_logic_vector(3 downto 0);
-        rst_aux_n_o : out std_logic;
-
-        link_ok_o : out std_logic
-        );
-    end component;
 
 end wrcore_pkg;
 

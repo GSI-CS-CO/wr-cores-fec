@@ -4,15 +4,15 @@
 -------------------------------------------------------------------------------
 -- File       : xwb_pps_gen.vhd
 -- Author     : Tomasz Wlostowski
--- Company    : CERN BE-Co-HT
+-- Company    : CERN (BE-CO-HT)
 -- Created    : 2010-09-02
--- Last update: 2012-07-09
+-- Last update: 2017-02-20
 -- Platform   : FPGA-generics
 -- Standard   : VHDL
 -------------------------------------------------------------------------------
 -- Description:
 -------------------------------------------------------------------------------
--- Copyright (c) 2010 Tomasz Wlostowski
+-- Copyright (c) 2010-2017 CERN
 -------------------------------------------------------------------------------
 -- Revisions  :
 -- Date        Version  Author          Description
@@ -35,23 +35,25 @@ entity xwr_pps_gen is
     g_address_granularity  : t_wishbone_address_granularity := WORD;
     g_ref_clock_rate       : integer                        := 125000000;
     g_ext_clock_rate       : integer                        := 10000000;
-    g_with_ext_clock_input : boolean                        := false
+    g_with_ext_clock_input : boolean                        := FALSE
     );
   port (
-    clk_ref_i : in std_logic;
-    clk_sys_i : in std_logic;
-    clk_ext_i : in std_logic := '0';
-    rst_n_i   : in std_logic;
+    clk_ref_i   : in std_logic;
+    clk_sys_i   : in std_logic;
+    rst_ref_n_i : in std_logic;
+    rst_sys_n_i : in std_logic;
 
     slave_i : in  t_wishbone_slave_in;
     slave_o : out t_wishbone_slave_out;
+
+    link_ok_i : in std_logic;
 
     pps_in_i : in std_logic;
 
     -- Single-pulse PPS output for synchronizing endpoints to
     pps_csync_o : out std_logic;
     pps_out_o   : out std_logic;
-		pps_led_o		: out std_logic;
+    pps_led_o   : out std_logic;
 
     pps_valid_o : out std_logic;
 
@@ -70,13 +72,13 @@ architecture behavioral of xwr_pps_gen is
       g_address_granularity  : t_wishbone_address_granularity;
       g_ref_clock_rate       : integer;
       g_ext_clock_rate       : integer := 10000000;
-      g_with_ext_clock_input : boolean := false
+      g_with_ext_clock_input : boolean := FALSE
       );
     port (
       clk_ref_i       : in  std_logic;
       clk_sys_i       : in  std_logic;
-      clk_ext_i       : in  std_logic;
-      rst_n_i         : in  std_logic;
+      rst_ref_n_i     : in  std_logic;
+      rst_sys_n_i     : in  std_logic;
       wb_adr_i        : in  std_logic_vector(4 downto 0);
       wb_dat_i        : in  std_logic_vector(31 downto 0);
       wb_dat_o        : out std_logic_vector(31 downto 0);
@@ -86,20 +88,21 @@ architecture behavioral of xwr_pps_gen is
       wb_we_i         : in  std_logic;
       wb_ack_o        : out std_logic;
       wb_stall_o      : out std_logic;
+      link_ok_i       : in  std_logic;
       pps_in_i        : in  std_logic;
       pps_csync_o     : out std_logic;
       pps_out_o       : out std_logic;
-			pps_led_o				: out std_logic;
+      pps_led_o       : out std_logic;
       pps_valid_o     : out std_logic;
       tm_utc_o        : out std_logic_vector(39 downto 0);
       tm_cycles_o     : out std_logic_vector(27 downto 0);
       tm_time_valid_o : out std_logic
       );
   end component;
-  
+
 begin  -- behavioral
 
-  
+
   WRAPPED_PPSGEN : wr_pps_gen
     generic map(
       g_interface_mode       => g_interface_mode,
@@ -111,8 +114,8 @@ begin  -- behavioral
     port map(
       clk_ref_i       => clk_ref_i,
       clk_sys_i       => clk_sys_i,
-      clk_ext_i       => clk_ext_i,
-      rst_n_i         => rst_n_i,
+      rst_ref_n_i     => rst_ref_n_i,
+      rst_sys_n_i     => rst_sys_n_i,
       wb_adr_i        => slave_i.adr(4 downto 0),
       wb_dat_i        => slave_i.dat,
       wb_dat_o        => slave_o.dat,
@@ -122,10 +125,11 @@ begin  -- behavioral
       wb_we_i         => slave_i.we,
       wb_ack_o        => slave_o.ack,
       wb_stall_o      => slave_o.stall,
+      link_ok_i       => link_ok_i,
       pps_in_i        => pps_in_i,
       pps_csync_o     => pps_csync_o,
       pps_out_o       => pps_out_o,
-			pps_led_o				=> pps_led_o,
+      pps_led_o       => pps_led_o,
       pps_valid_o     => pps_valid_o,
       tm_utc_o        => tm_utc_o,
       tm_cycles_o     => tm_cycles_o,
@@ -136,5 +140,5 @@ begin  -- behavioral
   slave_o.err <= '0';
   slave_o.rty <= '0';
   slave_o.int <= '0';
-  
+
 end behavioral;

@@ -6,7 +6,7 @@
 -- Author     : Tomasz Włostowski
 -- Company    : CERN BE-CO-HT
 -- Created    : 2010-11-18
--- Last update: 2013-06-03
+-- Last update: 2017-02-20
 -- Platform   : FPGA-generic
 -- Standard   : VHDL'93
 -------------------------------------------------------------------------------
@@ -19,7 +19,7 @@
 -- - White Rabbit serdes-specific features (calibration patterns & bitslide)
 -------------------------------------------------------------------------------
 --
--- Copyright (c) 2009-2011 CERN / BE-CO-HT
+-- Copyright (c) 2009-2017 CERN / BE-CO-HT
 --
 -- This source file is free software; you can redistribute it   
 -- and/or modify it under the terms of the GNU Lesser General   
@@ -68,11 +68,13 @@ entity ep_1000basex_pcs is
   port (
 
     ---------------------------------------------------------------------------
-    -- System clock & reset
+    -- System clock & resets (system + rx/tx)
     ---------------------------------------------------------------------------
 
-    rst_n_i   : in std_logic;
-    clk_sys_i : in std_logic;
+    rst_sys_n_i   : in std_logic;
+    rst_txclk_n_i : in std_logic;
+    rst_rxclk_n_i : in std_logic;
+    clk_sys_i     : in std_logic;
 
     ---------------------------------------------------------------------------
     -- PCS <-> MAC Interface
@@ -122,9 +124,6 @@ entity ep_1000basex_pcs is
     -- 1: serdes is reset, 0: serdes is operating normally.
     serdes_rst_o : out std_logic;
 
-    -- 1: serdes comma alignent is enabled.
-    serdes_syncen_o : out std_logic;
-
     -- 1: serdes near-end PMA loopback is enabled.
     serdes_loopen_o         : out std_logic;
 
@@ -143,12 +142,8 @@ entity ep_1000basex_pcs is
     -- 1: Disables the transmitter
     serdes_sfp_tx_disable_o : out std_logic;
 
-    -- 1: serdes TX/RX is enabled.
-    serdes_enable_o : out std_logic;
-    
     -- 1: serdes is locked and aligned
     serdes_rdy_i    : in  std_logic;
-
 
     ---------------------------------------------------------------------------
     -- Serdes TX path (all synchronous to serdes_tx_clk_i)
@@ -200,13 +195,14 @@ entity ep_1000basex_pcs is
     
     dbg_tx_pcs_wr_count_o     : out std_logic_vector(5+4 downto 0);
     dbg_tx_pcs_rd_count_o     : out std_logic_vector(5+4 downto 0);
-    nice_dbg_o : out t_dbg_ep_pcs);
+    nice_dbg_o                : out t_dbg_ep_pcs);
 
 end ep_1000basex_pcs;
 
 architecture rtl of ep_1000basex_pcs is
 
-  signal mdio_mcr_uni_en          : std_logic;
+  alias rst_n_i : std_logic is rst_sys_n_i;
+
   signal mdio_mcr_anrestart       : std_logic;
   signal mdio_mcr_pdown           : std_logic;
   signal mdio_mcr_pdown_cpu       : std_logic;
@@ -227,6 +223,8 @@ architecture rtl of ep_1000basex_pcs is
   signal mdio_wr_spec_rx_cal_stat : std_logic;
   signal mdio_wr_spec_cal_crst    : std_logic;
   signal mdio_wr_spec_bslide      : std_logic_vector(4 downto 0);
+  signal mdio_data_in             : std_logic_vector(31 downto 0);
+  signal mdio_data_out            : std_logic_vector(31 downto 0);
 
   signal lstat_read_notify : std_logic;
 
@@ -251,8 +249,6 @@ architecture rtl of ep_1000basex_pcs is
 
   signal wb_stb, wb_ack : std_logic;
 
-  signal dummy : std_logic_vector(31 downto 0);
-
   signal tx_clk, rx_clk : std_logic;
 
   --RMON events
@@ -271,11 +267,14 @@ begin  -- rtl
         rst_n_i   => pcs_reset_n,
         clk_sys_i => clk_sys_i,
 
+        rst_txclk_n_i => rst_txclk_n_i,
+
         pcs_fab_i   => txpcs_fab_i,
         pcs_error_o => txpcs_error_o,
         pcs_busy_o  => txpcs_busy_int,
         pcs_dreq_o  => txpcs_dreq_o,
 
+        mdio_mcr_reset_i      => mdio_mcr_reset,
         mdio_mcr_pdown_i      => mdio_mcr_pdown,
         mdio_wr_spec_tx_cal_i => mdio_wr_spec_tx_cal,
 
@@ -300,6 +299,8 @@ begin  -- rtl
         clk_sys_i => clk_sys_i,
         rst_n_i   => pcs_reset_n,
 
+        rst_rxclk_n_i => rst_rxclk_n_i,
+
         pcs_busy_o            => rxpcs_busy_o,
         pcs_fab_o             => rxpcs_fab_o,
         pcs_fifo_almostfull_i => rxpcs_fifo_almostfull_i,
@@ -309,6 +310,7 @@ begin  -- rtl
         timestamp_valid_i       => rxpcs_timestamp_valid_i,
         timestamp_stb_i         => rxpcs_timestamp_stb_i,
 
+        mdio_mcr_reset_i           => mdio_mcr_reset,
         mdio_mcr_pdown_i           => mdio_mcr_pdown,
         mdio_wr_spec_cal_crst_i    => mdio_wr_spec_cal_crst,
         mdio_wr_spec_rx_cal_stat_o => mdio_wr_spec_rx_cal_stat,
@@ -343,11 +345,14 @@ begin  -- rtl
         rst_n_i   => pcs_reset_n,
         clk_sys_i => clk_sys_i,
 
+        rst_txclk_n_i => rst_txclk_n_i,
+
         pcs_fab_i   => txpcs_fab_i,
         pcs_error_o => txpcs_error_o,
         pcs_busy_o  => txpcs_busy_int,
         pcs_dreq_o  => txpcs_dreq_o,
 
+        mdio_mcr_reset_i      => mdio_mcr_reset,
         mdio_mcr_pdown_i      => mdio_mcr_pdown,
         mdio_wr_spec_tx_cal_i => mdio_wr_spec_tx_cal,
 
@@ -370,6 +375,8 @@ begin  -- rtl
         clk_sys_i => clk_sys_i,
         rst_n_i   => pcs_reset_n,
 
+        rst_rxclk_n_i => rst_rxclk_n_i,
+
         pcs_busy_o            => rxpcs_busy_o,
         pcs_fab_o             => rxpcs_fab_o,
         pcs_fifo_almostfull_i => rxpcs_fifo_almostfull_i,
@@ -379,6 +386,7 @@ begin  -- rtl
         timestamp_valid_i       => rxpcs_timestamp_valid_i,
         timestamp_stb_i         => rxpcs_timestamp_stb_i,
 
+        mdio_mcr_reset_i           => mdio_mcr_reset,
         mdio_mcr_pdown_i           => mdio_mcr_pdown,
         mdio_wr_spec_cal_crst_i    => mdio_wr_spec_cal_crst,
         mdio_wr_spec_rx_cal_stat_o => mdio_wr_spec_rx_cal_stat,
@@ -403,24 +411,27 @@ begin  -- rtl
 
     mdio_wr_spec_bslide <= '0' & serdes_rx_bitslide_i(3 downto 0);
 
+    dbg_tx_pcs_rd_count_o <= (others => '0');
+    dbg_tx_pcs_wr_count_o <= (others => '0');
+    nice_dbg_o.rx.fsm     <= (others => '0');
+
   end generate gen_8bit;
 
   txpcs_busy_o <= txpcs_busy_int;
 
   -- to enable killing of link (by ML)
-  mdio_mcr_pdown      <= mdio_mcr_pdown_cpu or (not link_ctr_i);
- 
-  serdes_rst_o        <= (not pcs_reset_n) or mdio_mcr_pdown;
+  mdio_mcr_pdown <= mdio_mcr_pdown_cpu or (not link_ctr_i);
+
+  -- keep PHY reset also when SFP reports LOS (DL)
+  serdes_rst_o <= (not pcs_reset_n) or mdio_mcr_pdown or serdes_sfp_los_i;
 
   U_MDIO_WB : ep_pcs_tbi_mdio_wb
     port map (
-      rst_n_i                 => rst_n_i,
-      clk_sys_i               => clk_sys_i,
-      wb_adr_i                => mdio_addr_i(4 downto 0),
-      wb_dat_i(15 downto 0)   => mdio_data_i,
-      wb_dat_i(31 downto 16)  => x"0000",
-      wb_dat_o(15 downto 0)   => mdio_data_o,
-      wb_dat_o(31 downto 16)  => dummy(31 downto 16),
+      rst_n_i   => rst_n_i,
+      clk_sys_i => clk_sys_i,
+      wb_adr_i  => mdio_addr_i(4 downto 0),
+      wb_dat_i  => mdio_data_in,
+      wb_dat_o  => mdio_data_out,
 
       wb_cyc_i   => wb_stb,
       wb_sel_i   => "1111",
@@ -431,7 +442,7 @@ begin  -- rtl
       tx_clk_i   => serdes_tx_clk_i,
       rx_clk_i   => serdes_rx_clk_i,
 
-      mdio_mcr_uni_en_o          => mdio_mcr_uni_en,
+      mdio_mcr_uni_en_o          => open,
       mdio_mcr_anrestart_o       => mdio_mcr_anrestart,
       mdio_mcr_pdown_o           => mdio_mcr_pdown_cpu,
       mdio_mcr_anenable_o        => mdio_mcr_anenable,
@@ -461,6 +472,9 @@ begin  -- rtl
       lstat_read_notify_o => lstat_read_notify
       );
 
+
+  mdio_data_in <= X"0000" & mdio_data_i;
+  mdio_data_o  <= mdio_data_out(15 downto 0);
 
   mdio_msr_rfault <= '0';
 
@@ -519,7 +533,7 @@ begin  -- rtl
   -- process: handles the LSTATUS bit in MSR register
   -- inputs: sync_lost, synced, lstat_read_notify
   -- outputs: mdio_msr_lstatus
-  p_gen_link_status : process(clk_sys_i, pcs_reset_n)
+  p_gen_link_status : process(clk_sys_i)
   begin
     if rising_edge(clk_sys_i) then
       if(pcs_reset_n = '0') then
@@ -580,5 +594,23 @@ begin  -- rtl
     synced_o => open,
     npulse_o => open,
     ppulse_o => rmon_o.rx_sync_lost);
+
+  -- drive unused outputs
+  rmon_o.rx_crc_err             <= '0';
+  rmon_o.rx_ok                  <= '0';
+  rmon_o.rx_pfilter_drop        <= '0';
+  rmon_o.rx_runt                <= '0';
+  rmon_o.rx_giant               <= '0';
+  rmon_o.rx_pause               <= '0';
+  rmon_o.rx_pcs_err             <= '0';
+  rmon_o.rx_buffer_overrun      <= '0';
+  rmon_o.rx_rtu_overrun         <= '0';
+  rmon_o.rx_path_timing_failure <= '0';
+  rmon_o.tx_pause               <= '0';
+  rmon_o.rx_pclass              <= (others => '0');
+  rmon_o.rx_tclass              <= (others => '0');
+  rmon_o.tx_frame               <= '0';
+  rmon_o.rx_frame               <= '0';
+  rmon_o.rx_drop_at_rtu_full    <= '0';
 
 end rtl;

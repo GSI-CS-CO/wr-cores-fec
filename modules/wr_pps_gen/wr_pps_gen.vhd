@@ -4,15 +4,15 @@
 -------------------------------------------------------------------------------
 -- File       : wrsw_pps_gen.vhd
 -- Author     : Tomasz Wlostowski
--- Company    : CERN BE-Co-HT
+-- Company    : CERN (BE-CO-HT)
 -- Created    : 2010-09-02
--- Last update: 2014-07-15
+-- Last update: 2017-02-20
 -- Platform   : FPGA-generics
 -- Standard   : VHDL
 -------------------------------------------------------------------------------
 -- Description:
 -------------------------------------------------------------------------------
--- Copyright (c) 2010 Tomasz Wlostowski
+-- Copyright (c) 2010-2017 CERN
 -------------------------------------------------------------------------------
 -- Revisions  :
 -- Date        Version  Author          Description
@@ -39,11 +39,10 @@ entity wr_pps_gen is
     g_with_ext_clock_input : boolean                        := false
     );
   port (
-    clk_ref_i : in std_logic;
-    clk_sys_i : in std_logic;
-    clk_ext_i : in std_logic := '0';
-
-    rst_n_i : in std_logic;
+    clk_ref_i   : in std_logic;
+    clk_sys_i   : in std_logic;
+    rst_ref_n_i : in std_logic;
+    rst_sys_n_i : in std_logic;
 
     wb_adr_i   : in  std_logic_vector(4 downto 0);
     wb_dat_i   : in  std_logic_vector(31 downto 0);
@@ -54,6 +53,10 @@ entity wr_pps_gen is
     wb_we_i    : in  std_logic;
     wb_ack_o   : out std_logic;
     wb_stall_o : out std_logic;
+
+    -- Link status indicator (used for fast masking of PPS output when link
+    -- goes down
+    link_ok_i : in std_logic;
 
     -- External PPS input. Warning! This signal is treated as synchronous to
     -- the clk_ref_i (or the external 10 MHz reference) to prevent sync chain
@@ -75,9 +78,11 @@ end wr_pps_gen;
 
 architecture behavioral of wr_pps_gen is
 
+  alias rst_n_i : std_logic is rst_sys_n_i;
+
   constant c_PERIOD : integer := g_ref_clock_rate;
 
-  component pps_gen_wb
+  component pps_gen_wb is
     port (
       rst_n_i                : in  std_logic;
       clk_sys_i              : in  std_logic;
@@ -89,6 +94,7 @@ architecture behavioral of wr_pps_gen is
       wb_stb_i               : in  std_logic;
       wb_we_i                : in  std_logic;
       wb_ack_o               : out std_logic;
+      wb_stall_o             : out std_logic;
       refclk_i               : in  std_logic;
       ppsg_cr_cnt_rst_o      : out std_logic;
       ppsg_cr_cnt_en_o       : out std_logic;
@@ -112,9 +118,9 @@ architecture behavioral of wr_pps_gen is
       ppsg_escr_pps_valid_o  : out std_logic;
       ppsg_escr_tm_valid_o   : out std_logic;
       ppsg_escr_sec_set_o    : out std_logic;
-      ppsg_escr_nsec_set_o   : out std_logic);
-  end component;
-
+      ppsg_escr_nsec_set_o   : out std_logic;
+      ppsg_escr_pps_unmask_o : out std_logic);
+  end component pps_gen_wb;
 
 -- Wisbone slave signals
   signal ppsg_cr_cnt_rst : std_logic;
@@ -143,8 +149,9 @@ architecture behavioral of wr_pps_gen is
   signal ppsg_escr_sec_set   : std_logic;
   signal ppsg_escr_nsec_set  : std_logic;
 
-  signal ppsg_escr_pps_valid : std_logic;
-  signal ppsg_escr_tm_valid  : std_logic;
+  signal ppsg_escr_pps_valid  : std_logic;
+  signal ppsg_escr_tm_valid   : std_logic;
+  signal ppsg_escr_pps_unmask : std_logic;
 
   signal cntr_nsec    : unsigned (27 downto 0);
   signal cntr_utc     : unsigned (39 downto 0);
@@ -157,13 +164,9 @@ architecture behavioral of wr_pps_gen is
   signal adj_nsec : unsigned(27 downto 0);
   signal adj_utc  : unsigned(39 downto 0);
 
-  signal rst_synced_refclk : std_logic;
-
   signal adjust_in_progress_nsec : std_logic;
-  signal adjust_done_nsec        : std_logic;
 
   signal adjust_in_progress_utc : std_logic;
-  signal adjust_done_utc        : std_logic;
 
   signal width_cntr : unsigned(27 downto 0);
 
@@ -214,17 +217,6 @@ begin  -- behavioral
       sl_ack_o   => wb_ack_o,
       sl_stall_o => wb_stall_o);
 
-  
-  U_Sync_reset_refclk : gc_sync_ffs
-    generic map (
-      g_sync_edge => "positive")
-    port map (
-      clk_i    => clk_ref_i,
-      rst_n_i  => '1',
-      data_i   => rst_n_i,
-      synced_o => rst_synced_refclk,
-      npulse_o => open,
-      ppulse_o => open);
 
   U_Sync_pps_refclk : gc_sync_ffs
     generic map (
@@ -265,7 +257,9 @@ begin  -- behavioral
   end process;
 
   gen_without_external_clock_input : if(not g_with_ext_clock_input) generate
-    ext_sync_p <= '0';
+    ext_sync_p        <= '0';
+    sync_in_progress  <= '0';
+    ppsg_escr_sync_in <= '0';
   end generate gen_without_external_clock_input;
 
   gen_with_external_clock_input : if(g_with_ext_clock_input) generate
@@ -273,7 +267,7 @@ begin  -- behavioral
     p_external_sync : process(clk_ref_i)
     begin
       if falling_edge(clk_ref_i) then
-        if(rst_synced_refclk = '0') then
+        if(rst_ref_n_i = '0') then
           sync_in_progress  <= '0';
           ppsg_escr_sync_in <= '0';
         else
@@ -297,15 +291,14 @@ begin  -- behavioral
   end generate gen_with_external_clock_input;
 -- Nanosecond counter. Counts from 0 to c_PERIOD-1 every clk_ref_i cycle.
 
-  p_count_nsec : process(clk_ref_i, rst_synced_refclk)
+  p_count_nsec : process(clk_ref_i)
   begin
     if rising_edge(clk_ref_i) then
-      if rst_synced_refclk = '0' or ppsg_cr_cnt_rst = '1' then
+      if rst_ref_n_i = '0' or ppsg_cr_cnt_rst = '1' then
         cntr_nsec               <= (others => '0');
         ns_overflow             <= '0';
         ns_overflow_adv         <= '0';
         adjust_in_progress_nsec <= '0';
-        adjust_done_nsec        <= '1';
 
         -- counter is enabled?
       elsif(ppsg_cr_cnt_en = '1') then
@@ -314,14 +307,12 @@ begin  -- behavioral
         if(cntr_adjust_p = '1') then
 
 -- start waiting for next counter overflow
-          adjust_done_nsec        <= '0';
           adjust_in_progress_nsec <= '1';
         end if;
 
 -- got SET TIME command - load the counter with new value
         if(ppsg_cr_cnt_set_p = '1' or ext_sync_p = '1' or ppsg_escr_nsec_set = '1') then
           cntr_nsec        <= adj_nsec;
-          adjust_done_nsec <= '1';
           ns_overflow      <= '0';
           ns_overflow_adv  <= '0';
 
@@ -339,10 +330,9 @@ begin  -- behavioral
           ns_overflow_adv <= '0';
           -- we're in the middle of offset adjustment - load the counter with
           -- offset value instead of resetting it. This equals to subtracting the offset
-          -- but takes less logic. 
+          -- but takes less logic.
           if(adjust_in_progress_nsec = '1') then
             cntr_nsec               <= adj_nsec;
-            adjust_done_nsec        <= '1';  -- assert done flag at the end
             adjust_in_progress_nsec <= '0';
           else
             -- normal counter reset. Generate overflow pulse.
@@ -361,7 +351,7 @@ begin  -- behavioral
   p_drive_pps_valid : process(clk_ref_i)
   begin
     if rising_edge(clk_ref_i) then
-      if rst_synced_refclk = '0' or ppsg_cr_cnt_rst = '1' then
+      if rst_ref_n_i = '0' or ppsg_cr_cnt_rst = '1' then
         pps_valid_int   <= '0';
         ns_overflow_2nd <= '0';
       else
@@ -381,21 +371,18 @@ begin  -- behavioral
     end if;
   end process;
 
-  p_count_utc : process(clk_ref_i, rst_synced_refclk)
+  p_count_utc : process(clk_ref_i)
   begin
     if rising_edge(clk_ref_i) then
-      if rst_synced_refclk = '0' or ppsg_cr_cnt_rst = '1' then
+      if rst_ref_n_i = '0' or ppsg_cr_cnt_rst = '1' then
         cntr_utc               <= (others => '0');
-        adjust_done_utc        <= '1';
         adjust_in_progress_utc <= '0';
       elsif(ppsg_cr_cnt_en = '1') then
 
         if(ppsg_cr_cnt_set_p = '1' or ppsg_escr_sec_set = '1') then
           cntr_utc        <= adj_utc;
-          adjust_done_utc <= '1';
         elsif(cntr_adjust_p = '1') then
           adjust_in_progress_utc <= '1';
-          adjust_done_utc        <= '0';
 
           if(ns_overflow = '1') then
             cntr_utc <= cntr_utc +1;
@@ -403,7 +390,6 @@ begin  -- behavioral
 
         elsif(adjust_in_progress_utc = '1' and ns_overflow = '1') then
           cntr_utc               <= cntr_utc + adj_utc + 1;
-          adjust_done_utc        <= '1';
           adjust_in_progress_utc <= '0';
         elsif(ns_overflow = '1') then
           cntr_utc <= cntr_utc + 1;
@@ -416,17 +402,18 @@ begin  -- behavioral
   pps_csync_o <= ns_overflow;
 
   -- generates variable-width PPS pulses for PPS external output
-  p_gen_pps_out : process(clk_ref_i, rst_synced_refclk)
+  p_gen_pps_out : process(clk_ref_i)
   begin
     if rising_edge(clk_ref_i) then
-      if rst_synced_refclk = '0' then
+      if rst_ref_n_i = '0' then
         pps_out_int <= '0';
         pps_led_o   <= '0';
         width_cntr  <= (others => '0');
       else
 
         if(ns_overflow_adv = '1') then
-          pps_out_int <= ppsg_escr_pps_valid;
+          pps_out_int <= ppsg_escr_pps_valid and
+                         (link_ok_i or ppsg_escr_pps_unmask);
           width_cntr  <= unsigned(ppsg_cr_pwidth);
         elsif(ns_overflow = '1') then
           pps_led_o <= ppsg_escr_pps_valid;
@@ -443,10 +430,10 @@ begin  -- behavioral
 
   end process;
 
-  process(clk_ref_i, rst_synced_refclk)
+  process(clk_ref_i)
   begin
     if rising_edge(clk_ref_i) then
-      if rst_synced_refclk = '0' then
+      if rst_ref_n_i = '0' then
         pps_out_o <= '0';
       else
         pps_out_o <= pps_out_int;
@@ -489,7 +476,14 @@ begin  -- behavioral
       ppsg_escr_pps_valid_o  => ppsg_escr_pps_valid,
       ppsg_escr_tm_valid_o   => ppsg_escr_tm_valid,
       ppsg_escr_sec_set_o    => ppsg_escr_sec_set,
-      ppsg_escr_nsec_set_o   => ppsg_escr_nsec_set);
+      ppsg_escr_nsec_set_o   => ppsg_escr_nsec_set,
+      ppsg_escr_pps_unmask_o => ppsg_escr_pps_unmask);
+
+-- drive unused signals
+  wb_out.rty   <= '0';
+  wb_out.stall <= '0';
+  wb_out.int   <= '0';
+  wb_out.err   <= '0';
 
 -- start the adjustment upon write of 1 to CNT_ADJ bit
   cntr_adjust_p <= ppsg_cr_cnt_adj_load and ppsg_cr_cnt_adj_o;
