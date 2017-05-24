@@ -78,10 +78,8 @@ entity xcute_core is
     g_dpram_size                : integer                        := 131072/4;  --in 32-bit words
     g_interface_mode            : t_wishbone_interface_mode      := PIPELINED;
     g_address_granularity       : t_wishbone_address_granularity := BYTE;
-    g_etherbone_enable          : boolean                        := true;
-    g_etherbone_sdb             : t_sdb_device                   := c_wrc_periph3_sdb;
+    g_tcp_stack_enable          : boolean                        := true;
     g_ext_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
-    g_aux_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
     g_softpll_enable_debugger   : boolean                        := false;
     g_vuart_fifo_size           : integer                        := 1024;
     g_pcs_16bit                 : boolean                        := false;
@@ -205,16 +203,16 @@ entity xcute_core is
     -----------------------------------------
     --Etherbone WB interface
     -----------------------------------------
-    etherbone_master_o : out t_wishbone_master_out;
-    etherbone_master_i : in  t_wishbone_master_in := cc_dummy_master_in;
+    -- etherbone_master_o : out t_wishbone_master_out;
+    -- etherbone_master_i : in  t_wishbone_master_in := cc_dummy_master_in;
 
     -----------------------------------------
     -- Etherbone Fabric I/F
     -----------------------------------------
-    etherbone_src_o : out t_wrf_source_out;
-    etherbone_src_i : in  t_wrf_source_in := c_dummy_src_in;
-    etherbone_snk_o : out t_wrf_sink_out;
-    etherbone_snk_i : in  t_wrf_sink_in   := c_dummy_snk_in;
+    -- etherbone_src_o : out t_wrf_source_out;
+    -- etherbone_src_i : in  t_wrf_source_in := c_dummy_src_in;
+    -- etherbone_snk_o : out t_wrf_sink_out;
+    -- etherbone_snk_i : in  t_wrf_sink_in   := c_dummy_snk_in;
 
     -----------------------------------------
     --Ext WB interface
@@ -233,8 +231,8 @@ entity xcute_core is
     -----------------------------------------
     --aux Module
     -----------------------------------------
-    aux_master_o : out t_wishbone_master_out;
-    aux_master_i : in  t_wishbone_master_in := cc_dummy_master_in;
+    -- aux_master_o : out t_wishbone_master_out;
+    -- aux_master_i : in  t_wishbone_master_in := cc_dummy_master_in;
 
     -----------------------------------------
     -- External Tx Timestamping I/F
@@ -267,6 +265,7 @@ entity xcute_core is
     tm_cycles_o          : out std_logic_vector(27 downto 0);
     -- 1PPS output
     pps_p_o              : out std_logic;
+    pps_p1_o             : out std_logic;
     pps_led_o            : out std_logic;
 
     rst_aux_n_o : out std_logic;
@@ -296,10 +295,8 @@ component cute_core is
     g_dpram_size                : integer                        := 131072/4;  --in 32-bit words
     g_interface_mode            : t_wishbone_interface_mode      := PIPELINED;
     g_address_granularity       : t_wishbone_address_granularity := BYTE;
-    g_etherbone_enable          : boolean                        := true;    
-    g_etherbone_sdb             : t_sdb_device                   := c_wrc_periph3_sdb;
+    g_tcp_stack_enable          : boolean                        := true;    
     g_ext_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
-    g_aux_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
     g_softpll_enable_debugger   : boolean                        := false;
     g_vuart_fifo_size           : integer                        := 1024;
     g_pcs_16bit                 : boolean                        := false;
@@ -429,38 +426,38 @@ component cute_core is
     -----------------------------------------
     -- Etherbone WB master
     -----------------------------------------
-    etherbone_adr_o   : out std_logic_vector(c_wishbone_address_width-1 downto 0);
-    etherbone_dat_o   : out std_logic_vector(c_wishbone_data_width-1 downto 0);
-    etherbone_dat_i   : in  std_logic_vector(c_wishbone_data_width-1 downto 0);
-    etherbone_sel_o   : out std_logic_vector(c_wishbone_address_width/8-1 downto 0);
-    etherbone_we_o    : out std_logic;
-    etherbone_cyc_o   : out std_logic;
-    etherbone_stb_o   : out std_logic;
-    etherbone_ack_i   : in  std_logic := '1';
-    etherbone_stall_i : in  std_logic := '0';
+    -- etherbone_adr_o   : out std_logic_vector(c_wishbone_address_width-1 downto 0);
+    -- etherbone_dat_o   : out std_logic_vector(c_wishbone_data_width-1 downto 0);
+    -- etherbone_dat_i   : in  std_logic_vector(c_wishbone_data_width-1 downto 0);
+    -- etherbone_sel_o   : out std_logic_vector(c_wishbone_address_width/8-1 downto 0);
+    -- etherbone_we_o    : out std_logic;
+    -- etherbone_cyc_o   : out std_logic;
+    -- etherbone_stb_o   : out std_logic;
+    -- etherbone_ack_i   : in  std_logic := '1';
+    -- etherbone_stall_i : in  std_logic := '0';
 
     -----------------------------------------
     -- Etherbone Fabric I/F
     -----------------------------------------
-    etherbone_snk_adr_i   : in  std_logic_vector(1 downto 0)  := "00";
-    etherbone_snk_dat_i   : in  std_logic_vector(15 downto 0) := x"0000";
-    etherbone_snk_sel_i   : in  std_logic_vector(1 downto 0)  := "00";
-    etherbone_snk_cyc_i   : in  std_logic                     := '0';
-    etherbone_snk_we_i    : in  std_logic                     := '0';
-    etherbone_snk_stb_i   : in  std_logic                     := '0';
-    etherbone_snk_ack_o   : out std_logic;
-    etherbone_snk_err_o   : out std_logic;
-    etherbone_snk_stall_o : out std_logic;
+    -- etherbone_snk_adr_i   : in  std_logic_vector(1 downto 0)  := "00";
+    -- etherbone_snk_dat_i   : in  std_logic_vector(15 downto 0) := x"0000";
+    -- etherbone_snk_sel_i   : in  std_logic_vector(1 downto 0)  := "00";
+    -- etherbone_snk_cyc_i   : in  std_logic                     := '0';
+    -- etherbone_snk_we_i    : in  std_logic                     := '0';
+    -- etherbone_snk_stb_i   : in  std_logic                     := '0';
+    -- etherbone_snk_ack_o   : out std_logic;
+    -- etherbone_snk_err_o   : out std_logic;
+    -- etherbone_snk_stall_o : out std_logic;
 
-    etherbone_src_adr_o   : out std_logic_vector(1 downto 0);
-    etherbone_src_dat_o   : out std_logic_vector(15 downto 0);
-    etherbone_src_sel_o   : out std_logic_vector(1 downto 0);
-    etherbone_src_cyc_o   : out std_logic;
-    etherbone_src_stb_o   : out std_logic;
-    etherbone_src_we_o    : out std_logic;
-    etherbone_src_ack_i   : in  std_logic := '1';
-    etherbone_src_err_i   : in  std_logic := '0';
-    etherbone_src_stall_i : in  std_logic := '0';
+    -- etherbone_src_adr_o   : out std_logic_vector(1 downto 0);
+    -- etherbone_src_dat_o   : out std_logic_vector(15 downto 0);
+    -- etherbone_src_sel_o   : out std_logic_vector(1 downto 0);
+    -- etherbone_src_cyc_o   : out std_logic;
+    -- etherbone_src_stb_o   : out std_logic;
+    -- etherbone_src_we_o    : out std_logic;
+    -- etherbone_src_ack_i   : in  std_logic := '1';
+    -- etherbone_src_err_i   : in  std_logic := '0';
+    -- etherbone_src_stall_i : in  std_logic := '0';
 
     -----------------------------------------
     -- External WB master
@@ -501,15 +498,15 @@ component cute_core is
     -----------------------------------------
     -- aux Module
     -----------------------------------------
-    aux_adr_o   : out std_logic_vector(c_wishbone_address_width-1 downto 0);
-    aux_dat_o   : out std_logic_vector(c_wishbone_data_width-1 downto 0);
-    aux_dat_i   : in  std_logic_vector(c_wishbone_data_width-1 downto 0);
-    aux_sel_o   : out std_logic_vector(c_wishbone_address_width/8-1 downto 0);
-    aux_we_o    : out std_logic;
-    aux_cyc_o   : out std_logic;
-    aux_stb_o   : out std_logic;
-    aux_ack_i   : in  std_logic := '1';
-    aux_stall_i : in  std_logic := '0';
+    -- aux_adr_o   : out std_logic_vector(c_wishbone_address_width-1 downto 0);
+    -- aux_dat_o   : out std_logic_vector(c_wishbone_data_width-1 downto 0);
+    -- aux_dat_i   : in  std_logic_vector(c_wishbone_data_width-1 downto 0);
+    -- aux_sel_o   : out std_logic_vector(c_wishbone_address_width/8-1 downto 0);
+    -- aux_we_o    : out std_logic;
+    -- aux_cyc_o   : out std_logic;
+    -- aux_stb_o   : out std_logic;
+    -- aux_ack_i   : in  std_logic := '1';
+    -- aux_stall_i : in  std_logic := '0';
 
     ------------------------------------------
     -- External TX Timestamp I/F
@@ -546,6 +543,7 @@ component cute_core is
     tm_cycles_o          : out std_logic_vector(27 downto 0);
     -- 1PPS output
     pps_p_o              : out std_logic;
+    pps_p1_o             : out std_logic;
     pps_led_o            : out std_logic;
 
     rst_aux_n_o : out std_logic;
@@ -575,10 +573,8 @@ begin
       g_dpram_size                => g_dpram_size,
       g_interface_mode            => g_interface_mode,
       g_address_granularity       => g_address_granularity,
-      g_etherbone_enable          => g_etherbone_enable,
-      g_etherbone_sdb             => g_etherbone_sdb,
+      g_tcp_stack_enable          => g_tcp_stack_enable,
       g_ext_sdb                   => g_ext_sdb,
-      g_aux_sdb                   => g_aux_sdb,
       g_softpll_enable_debugger   => g_softpll_enable_debugger,
       g_vuart_fifo_size           => g_vuart_fifo_size,
       g_pcs_16bit                 => g_pcs_16bit,
@@ -589,17 +585,17 @@ begin
       g_diag_rw_size              => g_diag_rw_size
       )
     port map(
-      clk_sys_i     => clk_sys_i,
-      clk_dmtd_i    => clk_dmtd_i,
-      clk_ref_i     => clk_ref_i,
-      clk_aux_i     => clk_aux_i,
-      clk_ext_i     => clk_ext_i,
-      clk_ext_mul_i => clk_ext_mul_i,
+      clk_sys_i             => clk_sys_i,
+      clk_dmtd_i            => clk_dmtd_i,
+      clk_ref_i             => clk_ref_i,
+      clk_aux_i             => clk_aux_i,
+      clk_ext_i             => clk_ext_i,
+      clk_ext_mul_i         => clk_ext_mul_i,
       clk_ext_mul_locked_i  => clk_ext_mul_locked_i,
-      clk_ext_stopped_i => clk_ext_stopped_i,
-      clk_ext_rst_o     => clk_ext_rst_o,
-      pps_ext_i     => pps_ext_i,
-      rst_n_i       => rst_n_i,
+      clk_ext_stopped_i     => clk_ext_stopped_i,
+      clk_ext_rst_o         => clk_ext_rst_o,
+      pps_ext_i             => pps_ext_i,
+      rst_n_i               => rst_n_i,
 
       dac_hpll_load_p1_o   => dac_hpll_load_p1_o,
       dac_hpll_data_o      => dac_hpll_data_o,
@@ -666,35 +662,35 @@ begin
       wb_rty_o   => slave_o.rty,
       wb_stall_o => slave_o.stall,
 
-      etherbone_adr_o   => etherbone_master_o.adr,
-      etherbone_dat_o   => etherbone_master_o.dat,
-      etherbone_sel_o   => etherbone_master_o.sel,
-      etherbone_cyc_o   => etherbone_master_o.cyc,
-      etherbone_stb_o   => etherbone_master_o.stb,
-      etherbone_we_o    => etherbone_master_o.we,
-      etherbone_stall_i => etherbone_master_i.stall,
-      etherbone_ack_i   => etherbone_master_i.ack,
-      etherbone_dat_i   => etherbone_master_i.dat,
+      -- etherbone_adr_o   => etherbone_master_o.adr,
+      -- etherbone_dat_o   => etherbone_master_o.dat,
+      -- etherbone_sel_o   => etherbone_master_o.sel,
+      -- etherbone_cyc_o   => etherbone_master_o.cyc,
+      -- etherbone_stb_o   => etherbone_master_o.stb,
+      -- etherbone_we_o    => etherbone_master_o.we,
+      -- etherbone_stall_i => etherbone_master_i.stall,
+      -- etherbone_ack_i   => etherbone_master_i.ack,
+      -- etherbone_dat_i   => etherbone_master_i.dat,
 
-      etherbone_snk_adr_i   => etherbone_snk_i.adr,
-      etherbone_snk_dat_i   => etherbone_snk_i.dat,
-      etherbone_snk_sel_i   => etherbone_snk_i.sel,
-      etherbone_snk_cyc_i   => etherbone_snk_i.cyc,
-      etherbone_snk_we_i    => etherbone_snk_i.we,
-      etherbone_snk_stb_i   => etherbone_snk_i.stb,
-      etherbone_snk_ack_o   => etherbone_snk_o.ack,
-      etherbone_snk_err_o   => etherbone_snk_o.err,
-      etherbone_snk_stall_o => etherbone_snk_o.stall,
+      -- etherbone_snk_adr_i   => etherbone_snk_i.adr,
+      -- etherbone_snk_dat_i   => etherbone_snk_i.dat,
+      -- etherbone_snk_sel_i   => etherbone_snk_i.sel,
+      -- etherbone_snk_cyc_i   => etherbone_snk_i.cyc,
+      -- etherbone_snk_we_i    => etherbone_snk_i.we,
+      -- etherbone_snk_stb_i   => etherbone_snk_i.stb,
+      -- etherbone_snk_ack_o   => etherbone_snk_o.ack,
+      -- etherbone_snk_err_o   => etherbone_snk_o.err,
+      -- etherbone_snk_stall_o => etherbone_snk_o.stall,
 
-      etherbone_src_adr_o   => etherbone_src_o.adr,
-      etherbone_src_dat_o   => etherbone_src_o.dat,
-      etherbone_src_sel_o   => etherbone_src_o.sel,
-      etherbone_src_cyc_o   => etherbone_src_o.cyc,
-      etherbone_src_stb_o   => etherbone_src_o.stb,
-      etherbone_src_we_o    => etherbone_src_o.we,
-      etherbone_src_ack_i   => etherbone_src_i.ack,
-      etherbone_src_err_i   => etherbone_src_i.err,
-      etherbone_src_stall_i => etherbone_src_i.stall,
+      -- etherbone_src_adr_o   => etherbone_src_o.adr,
+      -- etherbone_src_dat_o   => etherbone_src_o.dat,
+      -- etherbone_src_sel_o   => etherbone_src_o.sel,
+      -- etherbone_src_cyc_o   => etherbone_src_o.cyc,
+      -- etherbone_src_stb_o   => etherbone_src_o.stb,
+      -- etherbone_src_we_o    => etherbone_src_o.we,
+      -- etherbone_src_ack_i   => etherbone_src_i.ack,
+      -- etherbone_src_err_i   => etherbone_src_i.err,
+      -- etherbone_src_stall_i => etherbone_src_i.stall,
 
       ext_adr_o   => ext_master_o.adr,
       ext_dat_o   => ext_master_o.dat,
@@ -726,15 +722,15 @@ begin
       ext_src_err_i   => ext_src_i.err,
       ext_src_stall_i => ext_src_i.stall,
 
-      aux_adr_o   => aux_master_o.adr,
-      aux_dat_o   => aux_master_o.dat,
-      aux_sel_o   => aux_master_o.sel,
-      aux_cyc_o   => aux_master_o.cyc,
-      aux_stb_o   => aux_master_o.stb,
-      aux_we_o    => aux_master_o.we,
-      aux_stall_i => aux_master_i.stall,
-      aux_ack_i   => aux_master_i.ack,
-      aux_dat_i   => aux_master_i.dat,
+      -- aux_adr_o   => aux_master_o.adr,
+      -- aux_dat_o   => aux_master_o.dat,
+      -- aux_sel_o   => aux_master_o.sel,
+      -- aux_cyc_o   => aux_master_o.cyc,
+      -- aux_stb_o   => aux_master_o.stb,
+      -- aux_we_o    => aux_master_o.we,
+      -- aux_stall_i => aux_master_i.stall,
+      -- aux_ack_i   => aux_master_i.ack,
+      -- aux_dat_i   => aux_master_i.dat,
 
       txtsu_port_id_o      => timestamps_o.port_id(4 downto 0),
       txtsu_frame_id_o     => timestamps_o.frame_id,
@@ -756,6 +752,7 @@ begin
       tm_tai_o             => tm_tai_o,
       tm_cycles_o          => tm_cycles_o,
       pps_p_o              => pps_p_o,
+      pps_p1_o             => pps_p1_o,
       pps_led_o            => pps_led_o,
 
       rst_aux_n_o => rst_aux_n_o,
@@ -771,6 +768,6 @@ begin
   slave_o.int <= '0';
 
   ext_snk_o.rty <= '0';
-  etherbone_snk_o.rty <= '0';
+  -- etherbone_snk_o.rty <= '0';
 
 end struct;
