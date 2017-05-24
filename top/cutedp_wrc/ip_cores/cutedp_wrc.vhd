@@ -39,7 +39,6 @@ use UNISIM.vcomponents.all;
 entity cutedp_wrc is
   generic
     (
-      g_tcp_stack_enable: boolean:= false;
       g_sfp0_enable: boolean:= true;
       g_sfp1_enable: boolean:= false;
       -- future work
@@ -67,12 +66,12 @@ entity cutedp_wrc is
       -- 125m reference clock, from pll drived by clk_125m_pllref
       clk_ref_i     : in std_logic;
       -- Dedicated clock for the Xilinx GTP transceiver.
-      clk_gtp0_i     : in std_logic:='0';
-      clk_gtp1_i     : in std_logic:='0';
-      rst_n_i  		: in std_logic;
+      clk_gtp0_i    : in std_logic:='0';
+      clk_gtp1_i    : in std_logic:='0';
+      rst_n_i  		  : in std_logic;
       -- font panel leds
-      sfp0_led_o : out std_logic;
-      sfp1_led_o : out std_logic;
+      sfp0_led_o    : out std_logic;
+      sfp1_led_o    : out std_logic;
 
       dac_hpll_load_p1_o : out std_logic;
       dac_hpll_data_o    : out std_logic_vector(15 downto 0);
@@ -140,6 +139,7 @@ entity cutedp_wrc is
       sfp1_los_i        : in  std_logic:='0';
 
       pps_o             : out std_logic;
+      pps_p1_o          : out std_logic;
       tm_time_valid_o   : out std_logic;
       tm_tai_o          : out std_logic_vector(39 downto 0);
       tm_cycles_o       : out std_logic_vector(27 downto 0);
@@ -205,7 +205,6 @@ architecture rtl of cutedp_wrc is
       g_dpram_size                : integer                        := 131072/4;  --in 32-bit words
       g_interface_mode            : t_wishbone_interface_mode      := PIPELINED;
       g_address_granularity       : t_wishbone_address_granularity := BYTE;
-      g_tcp_stack_enable          : boolean                        := true;
       g_ext_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
       g_softpll_enable_debugger   : boolean                        := false;
       g_vuart_fifo_size           : integer                        := 1024;
@@ -305,7 +304,7 @@ architecture rtl of cutedp_wrc is
       tm_tai_o                : out std_logic_vector(39 downto 0);
       tm_cycles_o             : out std_logic_vector(27 downto 0);
       pps_p_o                 : out std_logic;
-      pps_p1_o                 : out std_logic;
+      pps_p1_o                : out std_logic;
       pps_led_o               : out std_logic;
       rst_aux_n_o             : out std_logic;
       aux_diag_i              : in  t_generic_word_array(g_diag_ro_size-1 downto 0) := (others =>(others=>'0'));
@@ -319,7 +318,6 @@ architecture rtl of cutedp_wrc is
   ------------------------------------------------------------------------------  
   signal owr_en : std_logic_vector(1 downto 0);
   signal owr_i  : std_logic_vector(1 downto 0);
-  signal pps,pps_p1  : std_logic;
   signal pps_led : std_logic;
   signal led_red : std_logic;
   signal led_green : std_logic;
@@ -329,7 +327,11 @@ architecture rtl of cutedp_wrc is
   signal phy8_from_wrc : t_phy_8bits_from_wrc;
   signal phy1_8_to_wrc   : t_phy_8bits_to_wrc;
   signal phy1_8_from_wrc : t_phy_8bits_from_wrc;
-
+  signal sfp_mod_def0_i   : std_logic:='0';  -- sfp detect
+  signal sfp_mod_def1_i   : std_logic:='0';  -- scl
+  signal sfp_mod_def1_o   : std_logic;  -- scl
+  signal sfp_mod_def2_i   : std_logic:='0';  -- sda
+  signal sfp_mod_def2_o   : std_logic;  -- sda
   signal wrc_slave_i : t_wishbone_slave_in;
   signal wrc_slave_o : t_wishbone_slave_out;
 
@@ -409,10 +411,6 @@ begin
   thermo_id_o <= owr_en(0);
   owr_i(0)    <= thermo_id_i;
   owr_i(1)    <= '0';
-
-  pps_o      <= pps;
-
-U_WRPC_DP: if (g_enable_ch0 = true) generate
   
   sfp0_led_o <= led_red;
   sfp1_led_o <= led_green;
@@ -427,9 +425,8 @@ generic map (
     g_ep_rxbuf_size             => 1024,
     g_tx_runt_padding           => true,
     g_pcs_16bit                 => false,
-    g_dpram_initf               => "../../../../wrpc*_sw/wrc.bram",
+    g_dpram_initf               => "../../../../wrpc_sw/wrc.bram",
     g_dpram_size                => 131072/4,
-    g_tcp_stack_enable          => g_tcp_stack_enable,
     g_ext_sdb                   => c_ext_sdb,
     g_interface_mode            => pipelined,
     g_address_granularity       => byte,
@@ -488,11 +485,11 @@ port map (
     spi_ncs_o                   => open,
     spi_mosi_o                  => open,
     spi_miso_i                  => '0',
-    sfp_scl_o                   => sfp0_mod_def1_o,
-    sfp_scl_i                   => sfp0_mod_def1_i,
-    sfp_sda_o                   => sfp0_mod_def2_o,
-    sfp_sda_i                   => sfp0_mod_def2_i,
-    sfp_det_i                   => sfp0_mod_def0_i,
+    sfp_scl_o                   => sfp_mod_def1_o,
+    sfp_scl_i                   => sfp_mod_def1_i,
+    sfp_sda_o                   => sfp_mod_def2_o,
+    sfp_sda_i                   => sfp_mod_def2_i,
+    sfp_det_i                   => sfp_mod_def0_i,
     uart_rxd_i                  => uart_rxd_i,
     uart_txd_o                  => uart_txd_o,
     owr_en_o                    => owr_en,
@@ -520,16 +517,23 @@ port map (
     tm_time_valid_o             => tm_time_valid_o,
     tm_tai_o                    => tm_tai_o,
     tm_cycles_o                 => tm_cycles_o,
-    pps_p_o                     => pps,
-    pps_p1_o                    => pps_p1,
+    pps_p_o                     => pps_o,
+    pps_p1_o                    => pps_p1_o,
     pps_led_o                   => pps_led,
-    rst_aux_n_o                 => etherbone_rst_n
+    rst_aux_n_o                 => open
 );
 
-phy8_to_wrc.ref_clk        <= clk_ref_i;
-phy8_to_wrc.sfp_tx_fault   <= sfp0_tx_fault_i;
-phy8_to_wrc.sfp_los        <= sfp0_los_i;
-sfp0_tx_disable_o          <= phy8_from_wrc.sfp_tx_disable;
+U_WRPC_SFP0: if (g_sfp0_enable = true) generate
+
+  phy8_to_wrc.ref_clk        <= clk_ref_i;
+  phy8_to_wrc.sfp_tx_fault   <= sfp0_tx_fault_i;
+  phy8_to_wrc.sfp_los        <= sfp0_los_i;
+  sfp0_tx_disable_o          <= phy8_from_wrc.sfp_tx_disable;
+  sfp_mod_def0_i             <= sfp0_mod_def0_i;
+  sfp_mod_def1_i             <= sfp0_mod_def1_i;
+  sfp0_mod_def1_o            <= sfp_mod_def1_o;
+  sfp_mod_def2_i             <= sfp0_mod_def2_i;
+  sfp0_mod_def2_o            <= sfp_mod_def2_o;
 
 u_gtp0 : wr_gtp_phy_spartan6
 generic map (
@@ -537,7 +541,7 @@ generic map (
     g_enable_ch1 => 1,
     g_simulation => g_simulation)
 port map (
-    gtp_clk_i          => clk_gtp1_i,
+    gtp_clk_i          => clk_gtp0_i,
     ch1_ref_clk_i      => clk_ref_i,
     ch1_tx_data_i      => phy8_from_wrc.tx_data,
     ch1_tx_k_i         => phy8_from_wrc.tx_k(0),
@@ -553,10 +557,10 @@ port map (
     ch1_loopen_vec_i   => phy8_from_wrc.loopen_vec,
     ch1_tx_prbs_sel_i  => phy8_from_wrc.tx_prbs_sel,
     ch1_rdy_o          => phy8_to_wrc.rdy,
-    pad_txn1_o         => sfp1_txn_o,
-    pad_txp1_o         => sfp1_txp_o,
-    pad_rxn1_i         => sfp1_rxn_i,
-    pad_rxp1_i         => sfp1_rxp_i,
+    pad_txn1_o         => sfp0_txn_o,
+    pad_txp1_o         => sfp0_txp_o,
+    pad_rxn1_i         => sfp0_rxn_i,
+    pad_rxp1_i         => sfp0_rxp_i,
     ch0_ref_clk_i      => clk_ref_i,
     ch0_tx_data_i      => x"00",
     ch0_tx_k_i         => '0',
@@ -579,120 +583,66 @@ port map (
 );
 end generate;
 
-U_WRPC_DP: if (g_enable_ch1 = true) generate
+U_WRPC_SFP1: if (g_sfp1_enable = true) generate
   
-  sfp0_led_o <= led_red;
-  sfp1_led_o <= led_green;
+  phy8_to_wrc.ref_clk        <= clk_ref_i;
+  phy8_to_wrc.sfp_tx_fault   <= sfp1_tx_fault_i;
+  phy8_to_wrc.sfp_los        <= sfp1_los_i;
+  sfp0_tx_disable_o          <= phy8_from_wrc.sfp_tx_disable;
 
-u_wr_core : xcute_core
-generic map (
-    g_simulation                => g_simulation,
-    g_with_external_clock_input => true,
-    g_phys_uart                 => true,
-    g_virtual_uart              => true,
-    g_aux_clks                  => 0,
-    g_ep_rxbuf_size             => 1024,
-    g_tx_runt_padding           => true,
-    g_pcs_16bit                 => false,
-    g_dpram_initf               => "../../../../wrpc*_sw/wrc.bram",
-    g_dpram_size                => 131072/4,
-    g_etherbone_enable          => g_etherbone_enable,
-    g_etherbone_sdb             => c_etherbone_sdb,
-    g_ext_sdb                   => c_ext_sdb,
-    g_interface_mode            => pipelined,
-    g_address_granularity       => byte,
-    g_softpll_enable_debugger   => FALSE,
-    g_vuart_fifo_size           => 1024,
-    g_records_for_phy           => true,
-    g_diag_id                   => 0,
-    g_diag_ver                  => 0,
-    g_diag_ro_size              => 0,
-    g_diag_rw_size              => 0)
-port map (
-    clk_sys_i                   => clk_sys_i,
-    clk_dmtd_i                  => clk_dmtd_i,
-    clk_ref_i                   => clk_ref_i,
-    clk_aux_i                   => (others => '0'),
-    clk_ext_i                   => '0',
-    clk_ext_mul_i               => '0',
-    clk_ext_mul_locked_i        => '1',
-    clk_ext_stopped_i           => '0',
-    clk_ext_rst_o               => open,
-    pps_ext_i                   => '0',
-    rst_n_i                     => rst_n_i,
-    dac_hpll_load_p1_o          => dac_hpll_load_p1_o,
-    dac_hpll_data_o             => dac_hpll_data_o,
-    dac_dpll_load_p1_o          => dac_dpll_load_p1_o,
-    dac_dpll_data_o             => dac_dpll_data_o,
-    phy_ref_clk_i               => '0',
-    phy_tx_data_o               => open,
-    phy_tx_k_o                  => open,
-    phy_tx_disparity_i          => '0',
-    phy_tx_enc_err_i            => '0',
-    phy_rx_data_i               => (others => '0'),
-    phy_rx_rbclk_i              => '0',
-    phy_rx_k_i                  => (others => '0'),
-    phy_rx_enc_err_i            => '0',
-    phy_rx_bitslide_i           => (others => '0'),
-    phy_rst_o                   => open,
-    phy_rdy_i                   => '1',
-    phy_loopen_o                => open,
-    phy_loopen_vec_o            => open,
-    phy_tx_prbs_sel_o           => open,
-    phy_sfp_tx_fault_i          => '0',
-    phy_sfp_los_i               => '0',
-    phy_sfp_tx_disable_o        => open,
-    phy8_o                      => phy8_from_wrc,
-    phy8_i                      => phy8_to_wrc,
-    led_act_o                   => led_red,
-    led_link_o                  => led_green,
-    scl_o                       => fpga_scl_o,
-    scl_i                       => fpga_scl_i,
-    sda_o                       => fpga_sda_o,
-    sda_i                       => fpga_sda_i,
-    btn1_i                      => open,
-    btn2_i                      => open,
-    spi_sclk_o                  => open,
-    spi_ncs_o                   => open,
-    spi_mosi_o                  => open,
-    spi_miso_i                  => '0',
-    sfp_scl_o                   => sfp1_mod_def1_o,
-    sfp_scl_i                   => sfp1_mod_def1_i,
-    sfp_sda_o                   => sfp1_mod_def2_o,
-    sfp_sda_i                   => sfp1_mod_def2_i,
-    sfp_det_i                   => sfp1_mod_def0_i,
-    uart_rxd_i                  => uart_rxd_i,
-    uart_txd_o                  => uart_txd_o,
-    owr_en_o                    => owr_en,
-    owr_i                       => owr_i,
-    slave_i                     => wrc_slave_i,
-    slave_o                     => wrc_slave_o,
-    etherbone_master_o          => etherbone_cfg_slave_i,
-    etherbone_master_i          => etherbone_cfg_slave_o,
-    etherbone_src_o             => etherbone_snk_i,
-    etherbone_src_i             => etherbone_snk_o,
-    etherbone_snk_o             => etherbone_src_i,
-    etherbone_snk_i             => etherbone_src_o,
-    ext_master_o                => ext_master_o,
-    ext_master_i                => ext_master_i,
-    ext_src_o                   => ext_src_o,
-    ext_src_i                   => ext_src_i,
-    ext_snk_o                   => ext_snk_o,
-    ext_snk_i                   => ext_snk_i,
-    aux_master_o                => multiboot_in,
-    aux_master_i                => multiboot_out,
-    tm_dac_value_o              => open,
-    tm_dac_wr_o                 => open,
-    tm_clk_aux_lock_en_i        => (others => '0'),
-    tm_clk_aux_locked_o         => open,
-    tm_time_valid_o             => tm_time_valid_o,
-    tm_tai_o                    => tm_tai_o,
-    tm_cycles_o                 => tm_cycles_o,
-    pps_p_o                     => pps,
-    pps_p1_o                    => pps_p1,
-    pps_led_o                   => pps_led,
-    rst_aux_n_o                 => etherbone_rst_n
-);
+  sfp_mod_def0_i             <= sfp1_mod_def0_i;
+  sfp_mod_def1_i             <= sfp1_mod_def1_i;
+  sfp1_mod_def1_o            <= sfp_mod_def1_o;
+  sfp_mod_def2_i             <= sfp1_mod_def2_i;
+  sfp1_mod_def2_o            <= sfp_mod_def2_o;
+
+  u_gtp1 : wr_gtp_phy_spartan6
+  generic map (
+      g_enable_ch0 => 0,
+      g_enable_ch1 => 1,
+      g_simulation => g_simulation)
+  port map (
+      gtp_clk_i          => clk_gtp1_i,
+      ch1_ref_clk_i      => clk_ref_i,
+      ch1_tx_data_i      => phy8_from_wrc.tx_data,
+      ch1_tx_k_i         => phy8_from_wrc.tx_k(0),
+      ch1_tx_disparity_o => phy8_to_wrc.tx_disparity,
+      ch1_tx_enc_err_o   => phy8_to_wrc.tx_enc_err,
+      ch1_rx_rbclk_o     => phy8_to_wrc.rx_clk,
+      ch1_rx_data_o      => phy8_to_wrc.rx_data,
+      ch1_rx_k_o         => phy8_to_wrc.rx_k(0),
+      ch1_rx_enc_err_o   => phy8_to_wrc.rx_enc_err,
+      ch1_rx_bitslide_o  => phy8_to_wrc.rx_bitslide,
+      ch1_rst_i          => phy8_from_wrc.rst,
+      ch1_loopen_i       => phy8_from_wrc.loopen,
+      ch1_loopen_vec_i   => phy8_from_wrc.loopen_vec,
+      ch1_tx_prbs_sel_i  => phy8_from_wrc.tx_prbs_sel,
+      ch1_rdy_o          => phy8_to_wrc.rdy,
+      pad_txn1_o         => sfp1_txn_o,
+      pad_txp1_o         => sfp1_txp_o,
+      pad_rxn1_i         => sfp1_rxn_i,
+      pad_rxp1_i         => sfp1_rxp_i,
+      ch0_ref_clk_i      => clk_ref_i,
+      ch0_tx_data_i      => x"00",
+      ch0_tx_k_i         => '0',
+      ch0_tx_disparity_o => open,
+      ch0_tx_enc_err_o   => open,
+      ch0_rx_data_o      => open,
+      ch0_rx_rbclk_o     => open,
+      ch0_rx_k_o         => open,
+      ch0_rx_enc_err_o   => open,
+      ch0_rx_bitslide_o  => open,
+      ch0_rst_i          => '1',
+      ch0_loopen_i       => '0',
+      ch0_loopen_vec_i   => (others=>'0'),
+      ch0_tx_prbs_sel_i  => (others=>'0'),
+      ch0_rdy_o          => open,
+      pad_txn0_o         => open,
+      pad_txp0_o         => open,
+      pad_rxn0_i         => '0',
+      pad_rxp0_i         => '0'
+  );
+
 end generate;
 
 -- etherbone : eb_slave_core

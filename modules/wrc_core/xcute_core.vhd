@@ -78,7 +78,6 @@ entity xcute_core is
     g_dpram_size                : integer                        := 131072/4;  --in 32-bit words
     g_interface_mode            : t_wishbone_interface_mode      := PIPELINED;
     g_address_granularity       : t_wishbone_address_granularity := BYTE;
-    g_tcp_stack_enable          : boolean                        := true;
     g_ext_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
     g_softpll_enable_debugger   : boolean                        := false;
     g_vuart_fifo_size           : integer                        := 1024;
@@ -295,7 +294,6 @@ component cute_core is
     g_dpram_size                : integer                        := 131072/4;  --in 32-bit words
     g_interface_mode            : t_wishbone_interface_mode      := PIPELINED;
     g_address_granularity       : t_wishbone_address_granularity := BYTE;
-    g_tcp_stack_enable          : boolean                        := true;    
     g_ext_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
     g_softpll_enable_debugger   : boolean                        := false;
     g_vuart_fifo_size           : integer                        := 1024;
@@ -573,7 +571,6 @@ begin
       g_dpram_size                => g_dpram_size,
       g_interface_mode            => g_interface_mode,
       g_address_granularity       => g_address_granularity,
-      g_tcp_stack_enable          => g_tcp_stack_enable,
       g_ext_sdb                   => g_ext_sdb,
       g_softpll_enable_debugger   => g_softpll_enable_debugger,
       g_vuart_fifo_size           => g_vuart_fifo_size,

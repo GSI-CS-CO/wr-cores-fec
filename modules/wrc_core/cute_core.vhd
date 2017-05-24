@@ -92,7 +92,6 @@ entity cute_core is
     g_dpram_size                : integer                        := 131072/4;  --in 32-bit words
     g_interface_mode            : t_wishbone_interface_mode      := PIPELINED;
     g_address_granularity       : t_wishbone_address_granularity := BYTE;
-    g_tcp_stack_enable          : boolean                        := true;
     g_ext_sdb                   : t_sdb_device                   := c_wrc_periph3_sdb;
     g_softpll_enable_debugger   : boolean                        := false;
     g_vuart_fifo_size           : integer                        := 1024;
@@ -523,11 +522,11 @@ architecture struct of cute_core is
   signal ep_snk_out : t_wrf_sink_out;
   signal ep_snk_in  : t_wrf_sink_in;
 
-  signal mux_src_out : t_wrf_source_out_array(2 downto 0);
-  signal mux_src_in  : t_wrf_source_in_array(2 downto 0);
-  signal mux_snk_out : t_wrf_sink_out_array(2 downto 0);
-  signal mux_snk_in  : t_wrf_sink_in_array(2 downto 0);
-  signal mux_class   : t_wrf_mux_class(2 downto 0);
+  signal mux_src_out : t_wrf_source_out_array(1 downto 0);
+  signal mux_src_in  : t_wrf_source_in_array(1 downto 0);
+  signal mux_snk_out : t_wrf_sink_out_array(1 downto 0);
+  signal mux_snk_in  : t_wrf_sink_in_array(1 downto 0);
+  signal mux_class   : t_wrf_mux_class(1 downto 0);
 
   signal dummy : std_logic_vector(31 downto 0);
 
@@ -1003,8 +1002,6 @@ begin
   -----------------------------------------------------------------------------
   -- WB Secondary Crossbar
   -----------------------------------------------------------------------------
-  U_tcp_stack_gen:if (g_tcp_stack_enable = true) generate
-      
   WB_SECONDARY_CON : xwb_sdb_crossbar
     generic map(
       g_num_masters => 1,
@@ -1144,66 +1141,6 @@ begin
     mux_src_in(1).ack   <= ext_src_ack_i;
     mux_src_in(1).stall <= ext_src_stall_i;
     mux_src_in(1).err   <= ext_src_err_i;
-
-  end generate ;
-
-  U_not_tcp_stack_gen:if (g_tcp_stack_enable = false) generate
-
-    WB_SECONDARY_CON : xwb_sdb_crossbar
-      generic map(
-        g_num_masters => 1,
-        g_num_slaves  => c_nr_slaves_secbar-1,
-        g_registered  => true,
-        g_wraparound  => true,
-        g_layout      => c_secbar_layout(c_nr_slaves_secbar-1 downto 0),
-        g_sdb_addr    => c_secbar_sdb_address
-        )
-      port map(
-        clk_sys_i  => clk_sys_i,
-        rst_n_i    => rst_n_i,
-        -- Master connections (INTERCON is a slave)
-        slave_i(0) => cbar_master_o(1),
-        slave_o(0) => cbar_master_i(1),
-        -- Slave connections (INTERCON is a master)
-        master_i   => secbar_master_i,
-        master_o   => secbar_master_o
-        );
-
-    secbar_master_i(0) <= minic_wb_out;
-    minic_wb_in        <= secbar_master_o(0);
-    secbar_master_i(1) <= ep_wb_out;
-    ep_wb_in           <= secbar_master_o(1);
-    secbar_master_i(2) <= spll_wb_out;
-    spll_wb_in         <= secbar_master_o(2);
-    secbar_master_i(3) <= ppsg_wb_out;
-    ppsg_wb_in         <= secbar_master_o(3);
-    --peripherials
-    secbar_master_i(4) <= periph_slave_o(0);
-    secbar_master_i(5) <= periph_slave_o(1);
-    secbar_master_i(6) <= periph_slave_o(2);
-    periph_slave_i(0)  <= secbar_master_o(4);
-    periph_slave_i(1)  <= secbar_master_o(5);
-    periph_slave_i(2)  <= secbar_master_o(6);
-
-    mux_class(0)  <= x"ff";
-
-    U_WBP_Mux : xwrf_mux
-    generic map(
-      g_muxed_ports => 1)
-    port map (
-      clk_sys_i   => clk_sys_i,
-      rst_n_i     => rst_net_n,
-      ep_src_o    => ep_snk_in,
-      ep_src_i    => ep_snk_out,
-      ep_snk_o    => ep_src_in,
-      ep_snk_i    => ep_src_out,
-      mux_src_o   => mux_src_out(0 downto 0),
-      mux_src_i   => mux_src_in(0 downto 0),
-      mux_snk_o   => mux_snk_out(0 downto 0),
-      mux_snk_i   => mux_snk_in(0 downto 0),
-      mux_class_i => mux_class(0 downto 0));
-
-  end generate ;
   
   -----------------------------------------------------------------------------
   -- External Tx Timestamping I/F
