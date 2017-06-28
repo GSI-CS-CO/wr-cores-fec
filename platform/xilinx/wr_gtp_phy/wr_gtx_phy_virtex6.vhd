@@ -154,12 +154,12 @@ architecture rtl of wr_gtx_phy_virtex6 is
       TXRUNDISP_OUT         : out std_logic_vector(1 downto 0);
       TXN_OUT               : out std_logic;
       TXP_OUT               : out std_logic;
-      TXDLYALIGNDISABLE_IN  : in  std_logic;
-      TXDLYALIGNMONENB_IN   : in  std_logic;
-      TXDLYALIGNMONITOR_OUT : out std_logic_vector(7 downto 0);
-      TXDLYALIGNRESET_IN    : in  std_logic;
-      TXENPMAPHASEALIGN_IN  : in  std_logic;
-      TXPMASETPHASE_IN      : in  std_logic;
+--      TXDLYALIGNDISABLE_IN  : in  std_logic;
+--      TXDLYALIGNMONENB_IN   : in  std_logic;
+--      TXDLYALIGNMONITOR_OUT : out std_logic_vector(7 downto 0);
+--      TXDLYALIGNRESET_IN    : in  std_logic;
+--      TXENPMAPHASEALIGN_IN  : in  std_logic;
+--      TXPMASETPHASE_IN      : in  std_logic;
       GTXTXRESET_IN         : in  std_logic;
       MGTREFCLKTX_IN        : in  std_logic_vector(1 downto 0);
       PLLTXRESET_IN         : in  std_logic;
@@ -184,19 +184,19 @@ architecture rtl of wr_gtx_phy_virtex6 is
       I   : in  std_ulogic);
   end component;
 
-  component gtp_phase_align_virtex6
-    generic (
-      g_simulation : integer);
-    port (
-      gtp_rst_i                   : in  std_logic;
-      gtp_tx_clk_i                : in  std_logic;
-      gtp_tx_en_pma_phase_align_o : out std_logic;
-      gtp_tx_pma_set_phase_o      : out std_logic;
-      gtp_tx_dly_align_disable_o  : out std_logic;
-      gtp_tx_dly_align_reset_o    : out std_logic;
-      align_en_i                  : in  std_logic;
-      align_done_o                : out std_logic);
-  end component;
+--  component gtp_phase_align_virtex6
+--    generic (
+--      g_simulation : integer);
+--    port (
+--      gtp_rst_i                   : in  std_logic;
+--      gtp_tx_clk_i                : in  std_logic;
+--      gtp_tx_en_pma_phase_align_o : out std_logic;
+--      gtp_tx_pma_set_phase_o      : out std_logic;
+--      gtp_tx_dly_align_disable_o  : out std_logic;
+--      gtp_tx_dly_align_reset_o    : out std_logic;
+--      align_en_i                  : in  std_logic;
+--      align_done_o                : out std_logic);
+--  end component;
 
   component gtp_bitslide
     generic (
@@ -237,13 +237,13 @@ architecture rtl of wr_gtx_phy_virtex6 is
   signal rx_comma_det       : std_logic;
   signal rx_byte_is_aligned : std_logic;
 
-  signal tx_dly_align_disable  : std_logic;
-  signal tx_dly_align_reset    : std_logic;
-  signal tx_en_pma_phase_align : std_logic;
-  signal tx_pma_set_phase      : std_logic;
+--  signal tx_dly_align_disable  : std_logic;
+--  signal tx_dly_align_reset    : std_logic;
+--  signal tx_en_pma_phase_align : std_logic;
+--  signal tx_pma_set_phase      : std_logic;
 
-  signal align_enable : std_logic;
-  signal align_done   : std_logic;
+--  signal align_enable : std_logic;
+--  signal align_done   : std_logic;
 
   signal tx_rst_done, rx_rst_done : std_logic;
 
@@ -358,12 +358,12 @@ begin  -- rtl
       TXRUNDISP_OUT         => tx_rundisp_v6,
       TXN_OUT               => pad_txn_o,
       TXP_OUT               => pad_txp_o,
-      TXDLYALIGNDISABLE_IN  => tx_dly_align_disable,
-      TXDLYALIGNMONENB_IN   => '1',
-      TXDLYALIGNMONITOR_OUT => open,
-      TXDLYALIGNRESET_IN    => tx_dly_align_reset,
-      TXENPMAPHASEALIGN_IN  => tx_en_pma_phase_align,
-      TXPMASETPHASE_IN      => tx_pma_set_phase,
+--      TXDLYALIGNDISABLE_IN  => tx_dly_align_disable,
+--      TXDLYALIGNMONENB_IN   => '1',
+--      TXDLYALIGNMONITOR_OUT => open,
+--      TXDLYALIGNRESET_IN    => tx_dly_align_reset,
+--      TXENPMAPHASEALIGN_IN  => tx_en_pma_phase_align,
+--      TXPMASETPHASE_IN      => tx_pma_set_phase,
       GTXTXRESET_IN         => gtx_rst,
       MGTREFCLKTX_IN        => mgtrefclk_in,
       PLLTXRESET_IN         => '0',
@@ -372,18 +372,18 @@ begin  -- rtl
 
   mgtrefclk_in <= '0' & clk_gtx_i;
 
-  U_Phase_Align : gtp_phase_align_virtex6
-    generic map (
-      g_simulation => g_simulation)
-    port map (
-      gtp_rst_i                   => gtx_rst,
-      gtp_tx_clk_i                => clk_ref_i,
-      gtp_tx_en_pma_phase_align_o => tx_en_pma_phase_align,
-      gtp_tx_pma_set_phase_o      => tx_pma_set_phase,
-      gtp_tx_dly_align_disable_o  => tx_dly_align_disable,
-      gtp_tx_dly_align_reset_o    => tx_dly_align_reset,
-      align_en_i                  => align_enable,
-      align_done_o                => align_done);
+--  U_Phase_Align : gtp_phase_align_virtex6
+--    generic map (
+--      g_simulation => g_simulation)
+--    port map (
+--      gtp_rst_i                   => gtx_rst,
+--      gtp_tx_clk_i                => clk_ref_i,
+--      gtp_tx_en_pma_phase_align_o => tx_en_pma_phase_align,
+--      gtp_tx_pma_set_phase_o      => tx_pma_set_phase,
+--      gtp_tx_dly_align_disable_o  => tx_dly_align_disable,
+--      gtp_tx_dly_align_reset_o    => tx_dly_align_reset,
+--      align_en_i                  => align_enable,
+--      align_done_o                => align_done);
 
   U_Bitslide : gtp_bitslide
     generic map (
@@ -403,15 +403,16 @@ begin  -- rtl
   rst_done         <= rx_rst_done and tx_rst_done;
   pll_lockdet      <= txpll_lockdet and rxpll_lockdet;
   serdes_ready     <= rst_done and pll_lockdet;
-  align_enable     <= serdes_ready;
-  everything_ready <= serdes_ready and align_done;
+--  align_enable     <= serdes_ready;
+--  everything_ready <= serdes_ready and align_done;
+  everything_ready <= serdes_ready;
   rdy_o <= everything_ready;
 
   trig2(3) <= rx_rst_done;
   trig2(4) <= tx_rst_done;
   trig2(5) <= txpll_lockdet;
   trig2(6) <= rxpll_lockdet;
-  trig2(7) <= align_done;
+--  trig2(7) <= align_done;
 
 
 
