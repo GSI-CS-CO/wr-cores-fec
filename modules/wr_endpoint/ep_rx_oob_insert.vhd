@@ -29,6 +29,7 @@ architecture behavioral of ep_rx_oob_insert is
 
   type t_state is (WAIT_OOB, OOB);
   signal state : t_state;
+  signal src_fab_addr : std_logic_vector (1 downto 0);
 
   signal byte_cntr   : unsigned(15 downto 0);
 
@@ -80,11 +81,12 @@ begin
 
   snk_dreq_o                   <= src_dreq_i;
   src_fab_o.sof                <= snk_fab_i.sof;
-  src_fab_o.eof                <= snk_fab_i.eof;
+  --src_fab_o.eof                <= snk_fab_i.eof;
   src_fab_o.ERROR              <= snk_fab_i.ERROR;
   src_fab_o.bytesel            <= snk_fab_i.bytesel;
   src_fab_o.has_rx_timestamp   <= snk_fab_i.has_rx_timestamp;
   src_fab_o.rx_timestamp_valid <= snk_fab_i.rx_timestamp_valid;
+  src_fab_o.addr               <= src_fab_addr;
   
   p_count_bytes : process (clk_sys_i, rst_n_i)
     begin  -- process
@@ -93,7 +95,7 @@ begin
                 snk_fab_i.sof = '1' then
                 byte_cntr <= (others => '0');
             else
-                if(snk_fab_i.dvalid = '1' and src_fab_o.addr = c_WRF_DATA) then
+                if(snk_fab_i.dvalid = '1' and src_fab_addr = c_WRF_DATA) then
                     if(snk_fab_i.bytesel = '1') then
                         byte_cntr <= byte_cntr + 1;
                     else
@@ -106,38 +108,37 @@ begin
  
   p_comb_src : process (state, snk_fab_i, src_dreq_i, regs_i)
   begin
-    
+
     if(snk_fab_i.has_rx_timestamp = '1')then
       src_fab_o.data   <= c_WRF_OOB_TYPE_RX & (not snk_fab_i.rx_timestamp_valid) & "000000" & regs_i.ecr_portid_o;
       src_fab_o.dvalid <= '1';
-      src_fab_o.addr   <= c_WRF_OOB;
+      src_fab_addr     <= c_WRF_OOB;
     else
       if(state = WAIT_OOB) then
-        src_fab_o.addr   <= c_WRF_DATA;
+        src_fab_addr <= c_WRF_DATA;
+      else
+        src_fab_addr <= c_WRF_OOB;
+      end if;
+
+      if(snk_fab_i.eof = '0') then
         src_fab_o.data   <= snk_fab_i.data;
         src_fab_o.dvalid <= snk_fab_i.dvalid;
-      elsif (state = OOB) then
-        src_fab_o.addr   <= c_WRF_OOB;
-        if (snk_fab_i.eof = '1') then
-          src_fab_o.data   <= std_logic_vector(byte_cntr);
-          src_fab_o.dvalid <= '1';
-        else
-          src_fab_o.data   <= snk_fab_i.data;
-          src_fab_o.dvalid <= snk_fab_i.dvalid;
-        end if;
+      else
+        src_fab_o.data   <= std_logic_vector(byte_cntr);
+        src_fab_o.dvalid <= '1';
       end if;
     end if;
   end process;
 
   p_fsm : process(clk_sys_i)
   begin
+
     if rising_edge(clk_sys_i) then
+
+      src_fab_o.eof <= snk_fab_i.eof;
       if rst_n_i = '0' or regs_i.ecr_rx_en_o = '0' then
         state <= WAIT_OOB;
       else
-
-        --src_fab_o.eof <= snk_fab_i.eof;
-
         if(snk_fab_i.error = '1' or snk_fab_i.sof = '1') then
           state <= WAIT_OOB;
         else

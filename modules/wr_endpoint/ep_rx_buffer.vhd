@@ -89,14 +89,10 @@ architecture behavioral of ep_rx_buffer is
       -- tag = 11
       dout(17)          <= '1';
       dout(16)          <= '1';
-      if(fab.dvalid = '1') then
-        dout(15 downto 0) <= fab.data;
-      else
-        dout(15)          <= fab.sof;
-        dout(14)          <= fab.eof;
-        dout(13)          <= fab.error;
-        dout(12 downto 0) <= (others => '0');
-      end if;
+      dout(15)          <= fab.sof;
+      dout(14)          <= fab.eof;
+      dout(13)          <= fab.error;
+      dout(12 downto 0) <= (others => '0');
       valid_tmp         := '1';
 --      dout_valid        <= '1';
     elsif(fab.dvalid = '1') then
