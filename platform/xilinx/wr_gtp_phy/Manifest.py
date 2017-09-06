@@ -8,4 +8,5 @@ files = ["gtp_bitslide.vhd",
 	"whiterabbit_gtxe2_channel_wrapper_gt.vhd",	
 	"wr_gtp_phy_spartan6.vhd",
 	"wr_gtx_phy_virtex6.vhd",
-	"wr_gtx_phy_kintex7.vhd"];
+	"wr_gth_phy_kintex7ultrascale.vhd"
+];
