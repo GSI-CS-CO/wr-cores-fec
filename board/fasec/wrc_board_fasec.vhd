@@ -7,7 +7,7 @@
 -- Author(s)  : Grzegorz Daniluk <grzegorz.daniluk@cern.ch>
 -- Company    : CERN (BE-CO-HT)
 -- Created    : 2017-08-02
--- Last update: 2017-08-02
+-- Last update: 2017-09-07
 -- Standard   : VHDL'93
 -------------------------------------------------------------------------------
 -- Description: Top-level wrapper for WR PTP core including all the modules
@@ -355,6 +355,10 @@ architecture std_wrapper of wrc_board_fasec is
   signal wrs_tx_cfg_in  : t_tx_streamer_cfg;
   signal wrs_rx_cfg_in  : t_rx_streamer_cfg;
 
+  -- axi signals
+  signal s_axi_araddr : std_logic_vector(31 downto 0);
+  signal s_axi_awaddr : std_logic_vector(31 downto 0);
+
 begin  -- architecture struct
 
   -- Map top-level signals to internal records
@@ -428,6 +432,9 @@ begin  -- architecture struct
   --wrs_rx_cfg_in.filter_remote     <= wrs_rx_cfg_flt_r_i;
   --wrs_rx_cfg_in.fixed_latency     <= wrs_rx_cfg_fix_l_i;
 
+  -- axi supports word-addressing only, i.e. per 4 bytes; shift for wb-bridge
+  s_axi_araddr  <= "00" & s00_axi_araddr(31 downto 2);
+  s_axi_awaddr  <= "00" & s00_axi_awaddr(31 downto 2);
   -- Instantiate the records-based module
   cmp_xwrc_board_fasec : xwrc_board_fasec
     generic map (
@@ -493,7 +500,7 @@ begin  -- architecture struct
       --
       s00_axi_aclk_o       => s00_axi_aclk_o,
       s00_axi_aresetn      => s00_axi_aresetn,
-      s00_axi_awaddr       => s00_axi_awaddr,
+      s00_axi_awaddr       => s_axi_awaddr,
       s00_axi_awprot       => (others=>'0'), --s00_axi_awprot,
       s00_axi_awvalid      => s00_axi_awvalid,
       s00_axi_awready      => s00_axi_awready,
@@ -504,7 +511,7 @@ begin  -- architecture struct
       s00_axi_bresp        => s00_axi_bresp,
       s00_axi_bvalid       => s00_axi_bvalid,
       s00_axi_bready       => s00_axi_bready,
-      s00_axi_araddr       => s00_axi_araddr,
+      s00_axi_araddr       => s_axi_araddr,
       s00_axi_arprot       => (others=>'0'), --s00_axi_arprot,
       s00_axi_arvalid      => s00_axi_arvalid,
       s00_axi_arready      => s00_axi_arready,

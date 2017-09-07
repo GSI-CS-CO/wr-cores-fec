@@ -450,8 +450,6 @@ set_property "part" "xc7z030ffg676-2" $obj
 set_property "sim.ip.auto_export_scripts" "1" $obj
 set_property "simulator_language" "Mixed" $obj
 set_property "target_language" "VHDL" $obj
-set_property "xsim.array_display_limit" "64" $obj
-set_property "xsim.trace_limit" "65536" $obj
 
 # Create 'sources_1' fileset (if not found)
 if {[string equal [get_filesets -quiet sources_1] ""]} {
