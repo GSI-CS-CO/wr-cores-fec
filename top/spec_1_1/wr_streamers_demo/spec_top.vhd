@@ -42,6 +42,14 @@ use work.wishbone_pkg.all;
 
 entity spec_top is
   generic (
+    -- setting g_dpram_initf to file path will result in syntesis/simulation using the
+    -- content of this file to run LM32 microprocessor
+    -- setting g_dpram_init to empty string (i.e."") will result in synthesis/simulation
+    -- with empty RAM for the LM32 (it will not work until code is loaded)
+    -- NOTE: the path is correct when used from the synthesis folder (this is where
+    --       ISE calls the function to find the file, the path is not correct for where
+    --       this file is stored, i.e. in the top/ folder)
+    g_dpram_initf : string  := "../../../bin/wrpc/wrc_phy8.bram";
     -- Simulation mode enable parameter. Set by default (synthesis) to 0, and
     -- changed to non-zero in the instantiation of the top level DUT in the testbench.
     -- Its purpose is to reduce some internal counters/timeouts to speed up simulations.
@@ -514,7 +522,7 @@ begin
       g_ep_rxbuf_size             => 1024,
       g_tx_runt_padding           => true,
       g_pcs_16bit                 => false,
-      g_dpram_initf               => "../../../bin/wrpc/wrc_phy8_sim.bram",
+      g_dpram_initf               => g_dpram_initf,
 --       g_aux_sdb                   => c_etherbone_sdb, --ML
       g_dpram_size                => 131072/4,
       g_interface_mode            => PIPELINED,

@@ -40,7 +40,8 @@ module main;
    // This time we have two SPECs talking to each other in the same testbench
    spec_top
      #(
-       .g_simulation (1)
+       .g_simulation (1),
+       .g_dpram_initf("../../../bin/wrpc/wrc_phy8_sim.bram")
     ) SPEC_A (
            .clk_125m_pllref_p_i (clk_ref),
            .clk_125m_pllref_n_i (~clk_ref),
@@ -64,7 +65,8 @@ module main;
 
    spec_top
      #(
-       .g_simulation (1)
+       .g_simulation (1),
+       .g_dpram_initf("../../../bin/wrpc/wrc_phy8_sim.bram")
     ) SPEC_B (
            .clk_125m_pllref_p_i (clk_ref),
            .clk_125m_pllref_n_i (~clk_ref),
