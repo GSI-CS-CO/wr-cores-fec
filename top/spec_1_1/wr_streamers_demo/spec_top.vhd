@@ -715,7 +715,10 @@ begin
 
       -- minimum timeout: sends packets asap to minimize latency (but it's not
       -- good for large amounts of data due to encapsulation overhead)
-      g_tx_timeout => 1)
+      g_tx_timeout => 1,
+      
+      -- when simulating, the startup countdown is shorter
+      g_simulation => g_simulation)
     port map (
       clk_sys_i => clk_sys,
       rst_n_i   => rst_n,
