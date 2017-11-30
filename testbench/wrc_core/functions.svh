@@ -50,6 +50,7 @@ task send_frames(WBPacketSource src, int n_packets, int ifg = 0 /*[us]*/);
 // TODO: improve the IFG: allow to make it tighter
   int i, seed = 0,n1=0,n2=0;
   int cur_size, dir;
+  int length;
   EthPacket pkt, tmpl;
   EthPacket to_ext[$], to_minic[$];
   EthPacketGenerator gen  = new;
@@ -91,6 +92,10 @@ task send_frames(WBPacketSource src, int n_packets, int ifg = 0 /*[us]*/);
       random_ifg = ifg;
 
     $display("IFG: %4d [us] | %s", random_ifg, (ifg==0?"random":"forced"));
+
+    length = 500;
+    pkt.ethertype  = 500;
+    pkt.set_size(length);
 
     txPkt.get(1);
     src.send(pkt);

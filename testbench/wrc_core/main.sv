@@ -88,6 +88,9 @@
 `define BASE_SYSCON 'h20400
 `define BASE_MINIC  'h20000
 
+`define true 1
+`define false 0
+
 module main;
 
   wire clk_ref;
@@ -98,19 +101,23 @@ module main;
   IWishboneMaster WB_wrc (clk_sys, rst_n);
   IWishboneMaster WB_ep  (clk_sys, rst_n);
   IWishboneMaster WB_lbk (clk_sys, rst_n);
+  IWishboneMaster WB_fec (clk_ref, rst_n);
 
   /* WB accessors */
-  CWishboneAccessor acc_wrc, acc_ep, acc_lbk;
+  CWishboneAccessor acc_wrc, acc_ep, acc_lbk, acc_fec;
 
   /* Fabrics */
   IWishboneMaster #(2,16) WB_wrc_src (clk_sys, rst_n);
-  IWishboneSlave  #(2,16) WB_wrc_snk (clk_sys, rst_n);
+  IWishboneSlave  #(2,16) WB_wrc_snk (clk_sys, rst_n);  
+  IWishboneMaster #(2,16) WB_fec_src (clk_sys, rst_n);
+  IWishboneSlave  #(2,16) WB_fec_snk (clk_sys, rst_n);
+
   IWishboneMaster #(2,16) WB_ep_src  (clk_sys, rst_n);
   IWishboneSlave  #(2,16) WB_ep_snk  (clk_sys, rst_n);
 
   /* Fabrics accessors */
-  WBPacketSource wrc_src, ep_src;
-  WBPacketSink   wrc_snk, ep_snk;
+  WBPacketSource wrc_src, ep_src, fec_src;
+  WBPacketSink   wrc_snk, ep_snk, fec_snk;
 
   tbi_clock_rst_gen
   #(
@@ -142,6 +149,7 @@ module main;
   wire wrc_src_ack;
   wire wrc_src_stall;
   wire wrc_src_err;
+
   wire wrc_snk_cyc;
   wire wrc_snk_stb;
   wire [1:0] wrc_snk_sel;
@@ -151,6 +159,81 @@ module main;
   wire wrc_snk_stall;
   wire wrc_snk_err;
   wire link_up;
+
+  wire fec_src_cyc;
+  wire fec_src_stb;
+  wire [1:0] fec_src_sel;
+  wire [1:0] fec_src_adr;
+  wire [15:0] fec_src_dat;
+  wire fec_src_ack;
+  wire fec_src_stall;
+  wire fec_src_err;
+
+  wire fec_snk_cyc;
+  wire fec_snk_stb;
+  wire [1:0] fec_snk_sel;
+  wire [1:0] fec_snk_adr;
+  wire [15:0] fec_snk_dat;
+  wire fec_snk_ack;
+  wire fec_snk_stall;
+  wire fec_snk_err;
+
+  //////////////////////////
+  xwb_fec #(
+    .g_en_fec_enc(`true),
+    .g_en_fec_dec(`true),
+    .g_en_golay(`false),
+    .g_en_dec_time(`false))
+  XWB_FEC_ENC ( 
+    .clk_i(clk_sys),
+    .rst_n_i(rst_n),
+   
+    .fec_dec_sink_cyc(fec_snk_cyc),
+		.fec_dec_sink_stb(fec_snk_stb),
+		.fec_dec_sink_we(fec_snk_we),
+		.fec_dec_sink_sel(fec_snk_sel),
+		.fec_dec_sink_adr(fec_snk_adr),
+		.fec_dec_sink_dat(fec_snk_dat),
+		.fec_dec_sink_stall(fec_snk_stall),
+		.fec_dec_sink_ack(fec_snk_ack),		
+    
+    .fec_dec_src_cyc(wrc_snk_cyc),
+		.fec_dec_src_stb(wrc_snk_stb),
+		.fec_dec_src_we(wrc_snk_we),
+		.fec_dec_src_sel(wrc_snk_sel),
+		.fec_dec_src_adr(wrc_snk_adr),
+		.fec_dec_src_dat(wrc_snk_dat),
+		.fec_dec_src_stall(wrc_snk_stall),
+		.fec_dec_src_ack(wrc_snk_ack),
+ 
+		.fec_enc_src_cyc(fec_src_cyc),
+		.fec_enc_src_stb(fec_src_stb),
+		.fec_enc_src_we(fec_src_we),
+		.fec_enc_src_sel(fec_src_sel),
+		.fec_enc_src_adr(fec_src_adr),
+		.fec_enc_src_dat(fec_src_dat),
+		.fec_enc_src_ack(fec_src_stall),
+		.fec_enc_src_stall(fec_src_ack),
+
+    .fec_enc_sink_cyc(wrc_src_cyc),
+    .fec_enc_sink_stb(wrc_src_stb),
+    .fec_enc_sink_we(wrc_src_we),
+    .fec_enc_sink_sel(wrc_src_sel),
+    .fec_enc_sink_adr(wrc_src_adr),
+    .fec_enc_sink_dat(wrc_src_dat),
+    .fec_enc_sink_stall(wrc_src_stall),
+    .fec_enc_sink_ack(wrc_src_ack),
+
+           
+    .wb_slave_cyc(WB_fec.master.cyc),
+		.wb_slave_stb(WB_fec.master.stb),
+		.wb_slave_we(WB_fec.master.we),
+		.wb_slave_sel(4'b1111),
+		.wb_slave_adr(WB_fec.master.adr),
+		.wb_slave_dat_i(WB_fec.master.dat_o),
+		.wb_slave_dat_o(WB_fec.master.dat_i),
+		.wb_slave_ack(WB_fec.master.ack),
+		.wb_slave_stall(WB_fec.master.stall));
 
   /// ////////////////////// WR PTP CORE /////////////////////////////////////
   wr_core #(
@@ -194,17 +277,19 @@ module main;
     .ext_snk_dat_i              (wrc_snk_dat),
     .ext_snk_sel_i              (wrc_snk_sel),
     .ext_snk_cyc_i              (wrc_snk_cyc),
-    .ext_snk_we_i               (1'b1),
+    //.ext_snk_we_i               (1'b1),
+    .ext_snk_we_i               (wrc_snk_we),
     .ext_snk_stb_i              (wrc_snk_stb),
     .ext_snk_ack_o              (wrc_snk_ack),
     .ext_snk_err_o              (wrc_snk_err),
     .ext_snk_stall_o            (wrc_snk_stall),
+
     .ext_src_adr_o              (wrc_src_adr),
     .ext_src_dat_o              (wrc_src_dat),
     .ext_src_sel_o              (wrc_src_sel),
     .ext_src_cyc_o              (wrc_src_cyc),
     .ext_src_stb_o              (wrc_src_stb),
-    .ext_src_we_o               (),
+    .ext_src_we_o               (wrc_src_we),
     .ext_src_ack_i              (wrc_src_ack),
     .ext_src_err_i              (wrc_src_err),
     .ext_src_stall_i            (wrc_src_stall),
@@ -308,23 +393,23 @@ module main;
   WRF_LBK (
     .clk_sys_i                  (clk_sys),
     .rst_n_i                    (rst_n),
-    .snk_cyc_i                  (wrc_src_cyc),
-    .snk_stb_i                  (wrc_src_stb),
-    .snk_we_i                   (1'b1),
-    .snk_sel_i                  (wrc_src_sel),
-    .snk_adr_i                  (wrc_src_adr),
-    .snk_dat_i                  (wrc_src_dat),
-    .snk_ack_o                  (wrc_src_ack),
-    .snk_stall_o                (wrc_src_stall),
+    .snk_cyc_i                  (fec_src_cyc),
+    .snk_stb_i                  (fec_src_stb),
+    .snk_we_i                   (fec_src_we),
+    .snk_sel_i                  (fec_src_sel),
+    .snk_adr_i                  (fec_src_adr),
+    .snk_dat_i                  (fec_src_dat),
+    .snk_ack_o                  (fec_src_ack),
+    .snk_stall_o                (fec_src_stall),
 
-    .src_cyc_o                  (wrc_snk_cyc),
-    .src_stb_o                  (wrc_snk_stb),
-    .src_we_o                   (),
-    .src_sel_o                  (wrc_snk_sel),
-    .src_adr_o                  (wrc_snk_adr),
-    .src_dat_o                  (wrc_snk_dat),
-    .src_ack_i                  (wrc_snk_ack),
-    .src_stall_i                (wrc_snk_stall),
+    .src_cyc_o                  (fec_snk_cyc),
+    .src_stb_o                  (fec_snk_stb),
+    .src_we_o                   (fec_snk_we),
+    .src_sel_o                  (fec_snk_sel),
+    .src_adr_o                  (fec_snk_adr),
+    .src_dat_o                  (fec_snk_dat),
+    .src_ack_i                  (fec_snk_ack),
+    .src_stall_i                (fec_snk_stall),
 
     .wb_cyc_i                   (WB_lbk.master.cyc),
     .wb_stb_i                   (WB_lbk.master.stb),
@@ -354,6 +439,9 @@ module main;
     repeat(3) @(posedge clk_sys);
 
     #1us;
+    acc_fec = WB_fec.get_accessor();
+    acc_fec.set_mode(PIPELINED);
+    WB_fec.settings.cyc_on_stall = 1;
 
     acc_wrc = WB_wrc.get_accessor();
     acc_wrc.set_mode(PIPELINED);
@@ -367,6 +455,9 @@ module main;
 
     wrc_src = new(WB_wrc_src.get_accessor());
     WB_wrc_src.settings.cyc_on_stall = 1;
+
+    fec_src = new(WB_fec_src.get_accessor());
+    WB_fec_src.settings.cyc_on_stall = 1;
 
     ep_src = new(WB_ep_src.get_accessor());
     WB_ep_src.settings.cyc_on_stall = 1;
@@ -423,6 +514,10 @@ module main;
 
     WB_wrc_snk.settings.gen_random_stalls = 1;
     wrc_snk = new(WB_wrc_snk.get_accessor());
+
+    WB_fec_snk.settings.gen_random_stalls = 1;
+    fec_snk = new(WB_fec_snk.get_accessor());
+
     WB_ep_snk.settings.gen_random_stalls = 0;
     ep_snk = new(WB_ep_snk.get_accessor());
 
