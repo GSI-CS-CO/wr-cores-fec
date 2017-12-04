@@ -10,17 +10,17 @@ add wave -noupdate /main/DUT/phy_tx_k_o
 add wave -noupdate /main/phy_rbclk
 add wave -noupdate /main/DUT/phy_rx_data_i
 add wave -noupdate /main/DUT/phy_rx_k_i
-add wave -noupdate -expand -group WRPC_EP -expand /main/DUT/U_Endpoint/src_o
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/src_i
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/snk_o
-add wave -noupdate -expand -group WRPC_EP -expand /main/DUT/U_Endpoint/snk_i
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/regs_fromwb
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/regs_towb
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/pfilter_done_o
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/pfilter_drop_o
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/pfilter_pclass_o
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/wb_i
-add wave -noupdate -expand -group WRPC_EP /main/DUT/U_Endpoint/wb_o
+add wave -noupdate -group WRPC_EP -expand /main/DUT/U_Endpoint/src_o
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/src_i
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/snk_o
+add wave -noupdate -group WRPC_EP -expand /main/DUT/U_Endpoint/snk_i
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/regs_fromwb
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/regs_towb
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/pfilter_done_o
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/pfilter_drop_o
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/U_Wrapped_Endpoint/pfilter_pclass_o
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/wb_i
+add wave -noupdate -group WRPC_EP /main/DUT/U_Endpoint/wb_o
 add wave -noupdate -group EP_PCS /main/DUT/U_Endpoint/U_Wrapped_Endpoint/U_PCS_1000BASEX/gen_8bit/U_TX_PCS/phy_tx_clk_i
 add wave -noupdate -group EP_PCS /main/DUT/U_Endpoint/U_Wrapped_Endpoint/U_PCS_1000BASEX/gen_8bit/U_TX_PCS/phy_tx_data_o
 add wave -noupdate -group EP_PCS /main/DUT/U_Endpoint/U_Wrapped_Endpoint/U_PCS_1000BASEX/gen_8bit/U_TX_PCS/phy_tx_k_o
@@ -217,7 +217,7 @@ add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/hdr_etherty
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/eth_cnt
 add wave -noupdate -group FEC -expand /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/snk_i
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/snk_o
-add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/src_i
+add wave -noupdate -group FEC -expand /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/src_i
 add wave -noupdate -group FEC -expand /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/src_o
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/ctrl_reg_i
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/stat_reg_o
@@ -234,7 +234,6 @@ add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/ctrl_reg
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/snk_stall
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/enc_payload
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/fec_hdr
-add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/data_payload
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/fec_stb
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/fec_hdr_stb
 add wave -noupdate -group FEC /main/XWB_FEC_ENC/y_WB_FEC_ENC/FEC_ENC/pkt_id
@@ -303,37 +302,88 @@ add wave -noupdate -group LOOP /main/WRF_LBK/X_LOOPBACK/fword_valid
 add wave -noupdate -group LOOP /main/WRF_LBK/X_LOOPBACK/forced_dmac
 add wave -noupdate -group LOOP /main/WRF_LBK/X_LOOPBACK/src_fab
 add wave -noupdate -group LOOP /main/WRF_LBK/X_LOOPBACK/src_dreq
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_cyc_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_stb_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_we_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_sel_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_adr_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_dat_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_ack_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_stall_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_cyc_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_stb_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_we_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_sel_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_adr_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_dat_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_ack_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_stall_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_cyc_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_stb_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_we_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_sel_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_adr_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_dat_i
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_dat_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_ack_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/wb_stall_o
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_in
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/snk_out
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_in
-add wave -noupdate -expand -group LOOP_PORTS /main/WRF_LBK/src_out
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_cyc_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_stb_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_we_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_sel_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_adr_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_dat_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_ack_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_stall_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_cyc_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_stb_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_we_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_sel_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_adr_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_dat_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_ack_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_stall_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_cyc_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_stb_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_we_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_sel_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_adr_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_dat_i
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_dat_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_ack_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/wb_stall_o
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_in
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/snk_out
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_in
+add wave -noupdate -group LOOP_PORTS /main/WRF_LBK/src_out
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/abort_now
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/abort_p1
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/bitsel_d
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/c_IFG_LENGTH
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/c_MIN_FRAME_THR
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/c_MIN_QFRAME_THR
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/clk_sys_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/counter
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/decoded_status
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/eof_p1
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/ep_ctrl
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/ep_ctrl_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/error_p1
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/fc_flow_enable_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/fc_pause_delay_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/fc_pause_ready_o
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/fc_pause_req_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/g_force_gap_length
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/g_runt_padding
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/g_with_packet_injection
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/g_with_timestamper
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/needs_padding
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/oob
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/oob_state
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/pcs_busy_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/pcs_error_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/regs_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/rst_n_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/snk_cyc_d0
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/snk_valid
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/sof_p1
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/sof_reg
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/src_dreq_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/src_fab_o
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/stall_int
+add wave -noupdate -expand -group end_point -height 16 /main/EP/U_Tx_Path/U_Header_Processor/state
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/stored_status
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/to_be_untagged
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/tx_en
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/tx_pause_mode
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/txts_timestamp_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/txts_timestamp_valid_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/txtsu_ack_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/txtsu_fid_o
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/txtsu_port_id_o
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/txtsu_stb_o
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/txtsu_ts_incorrect_o
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/txtsu_ts_value_o
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/wb_out
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/wb_snk_i
+add wave -noupdate -expand -group end_point /main/EP/U_Tx_Path/U_Header_Processor/wb_snk_o
 TreeUpdate [SetDefaultTree]
-WaveRestoreCursors {{Cursor 2} {402323834470 fs} 1} {{Cursor 2} {1462432753330 fs} 0} {{Cursor 3} {1423537594980 fs} 0}
+WaveRestoreCursors {{Cursor 2} {402323834470 fs} 1} {{Cursor 2} {1405297650000 fs} 0} {{Cursor 3} {649303647440 fs} 0}
 configure wave -namecolwidth 180
 configure wave -valuecolwidth 91
 configure wave -justifyvalue left
@@ -348,4 +398,4 @@ configure wave -griddelta 40
 configure wave -timeline 0
 configure wave -timelineunits ns
 update
-WaveRestoreZoom {1512662552780 fs} {1618531286700 fs}
+WaveRestoreZoom {1379770250800 fs} {1487335614100 fs}

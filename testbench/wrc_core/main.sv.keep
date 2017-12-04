@@ -109,16 +109,15 @@ module main;
   /* Fabrics */
   IWishboneMaster #(2,16) WB_wrc_src (clk_sys, rst_n);
   IWishboneSlave  #(2,16) WB_wrc_snk (clk_sys, rst_n);  
-  IWishboneMaster #(2,16) WB_ep_src (clk_sys, rst_n);
-  IWishboneSlave  #(2,16) WB_ep_snk (clk_sys, rst_n);  
-
+  IWishboneMaster #(2,16) WB_fec_src (clk_sys, rst_n);
+  IWishboneSlave  #(2,16) WB_fec_snk (clk_sys, rst_n);
 
   IWishboneMaster #(2,16) WB_enc_src  (clk_sys, rst_n);
   IWishboneSlave  #(2,16) WB_dec_snk  (clk_sys, rst_n);
 
   /* Fabrics accessors */
-  WBPacketSource wrc_src, ep_src, enc_src;
-  WBPacketSink   wrc_snk, ep_snk, dec_snk;
+  WBPacketSource wrc_src, ep_src, fec_src;
+  WBPacketSink   wrc_snk, ep_snk, fec_snk;
 
   tbi_clock_rst_gen
   #(
@@ -224,6 +223,7 @@ module main;
     .fec_enc_sink_we    (WB_enc_src.master.we),
     .fec_enc_sink_stall (WB_enc_src.master.stall),
     .fec_enc_sink_ack   (WB_enc_src.master.ack),
+    .fec_enc_sink_err   (WB_enc_src.master.err),
 
     .wb_slave_cyc(WB_fec.master.cyc),
 		.wb_slave_stb(WB_fec.master.stb),
@@ -272,6 +272,16 @@ module main;
     .btn2_i                     (1'b0),
     .led_link_o                 (link_up),
 
+
+(wrc_snk_cyc),
+(wrc_snk_stb),
+(wrc_snk_we),
+(wrc_snk_sel),
+(wrc_snk_adr),
+(wrc_snk_dat),
+(wrc_snk_stall)
+(wrc_snk_ack),
+
      // connected to wrf_loopback
     .ext_snk_adr_i              (wrc_snk_adr),
     .ext_snk_dat_i              (wrc_snk_dat),
@@ -297,8 +307,7 @@ module main;
     .wb_adr_i                   (WB_wrc.master.adr[31:0]),
     .wb_dat_i                   (WB_wrc.master.dat_o),
     .wb_dat_o                   (WB_wrc.master.dat_i),
-    //.wb_sel_i                   (4'b1111),
-    .wb_sel_i                   (WB_wrc.master.sel),
+    .wb_sel_i                   (4'b1111),
     .wb_we_i                    (WB_wrc.master.we),
     .wb_cyc_i                   (WB_wrc.master.cyc),
     .wb_stb_i                   (WB_wrc.master.stb),
@@ -357,15 +366,15 @@ module main;
     .phy_rx_bitslide_i          (phy_rx_bitslide),
 
     // connected to simulation
-    .src_cyc_o                  (fec_snk_cyc),
-    .src_stb_o                  (fec_snk_stb),
-    .src_we_o                   (fec_snk_we),
-    .src_sel_o                  (fec_snk_sel),
-    .src_adr_o                  (fec_snk_adr),
-    .src_dat_o                  (fec_snk_dat),
-    .src_ack_i                  (fec_snk_ack),
-    .src_stall_i                (fec_snk_stall),
-    .src_err_i                  (fec_snk_err),
+    .src_dat_o                  ,
+    .src_adr_o                  
+    .src_sel_o                  
+    .src_cyc_o                  
+    .src_stb_o                  
+    .src_we_o                   
+    .src_stall_i                ,
+    .src_ack_i                  
+    .src_err_i                  (1'b0),
 
     .snk_cyc_i                  (fec_src_cyc),
     .snk_stb_i                  (fec_src_stb),
@@ -394,31 +403,28 @@ module main;
   WRF_LBK (
     .clk_sys_i                  (clk_sys),
     .rst_n_i                    (rst_n),
+    .snk_cyc_i                  (fec_src_cyc),
+    .snk_stb_i                  (fec_src_stb),
+    .snk_we_i                   (fec_src_we),
+    .snk_sel_i                  (fec_src_sel),
+    .snk_adr_i                  (fec_src_adr),
+    .snk_dat_i                  (fec_src_dat),
+    .snk_ack_o                  (fec_src_ack),
+    .snk_stall_o                (fec_src_stall),
 
-    .snk_cyc_i                  (wrc_src_cyc),
-    .snk_stb_i                  (wrc_src_stb),
-    //.snk_we_i                   (1'b1),
-    .snk_we_i                   (wrc_src_we),
-    .snk_sel_i                  (wrc_src_sel),
-    .snk_adr_i                  (wrc_src_adr),
-    .snk_dat_i                  (wrc_src_dat),
-    .snk_ack_o                  (wrc_src_ack),
-    .snk_stall_o                (wrc_src_stall),
-
-    .src_cyc_o                  (wrc_snk_cyc),
-    .src_stb_o                  (wrc_snk_stb),
-    .src_we_o                   (wrc_snk_we),
-    .src_sel_o                  (wrc_snk_sel),
-    .src_adr_o                  (wrc_snk_adr),
-    .src_dat_o                  (wrc_snk_dat),
-    .src_ack_i                  (wrc_snk_ack),
-    .src_stall_i                (wrc_snk_stall),
+    .src_cyc_o                  (fec_snk_cyc),
+    .src_stb_o                  (fec_snk_stb),
+    .src_we_o                   (fec_snk_we),
+    .src_sel_o                  (fec_snk_sel),
+    .src_adr_o                  (fec_snk_adr),
+    .src_dat_o                  (fec_snk_dat),
+    .src_ack_i                  (fec_snk_ack),
+    .src_stall_i                (fec_snk_stall),
 
     .wb_cyc_i                   (WB_lbk.master.cyc),
     .wb_stb_i                   (WB_lbk.master.stb),
     .wb_we_i                    (WB_lbk.master.we),
-    //.wb_sel_i                   (4'b1111),
-    .wb_sel_i                   (WB_lbk.master.sel),
+    .wb_sel_i                   (4'b1111),
     .wb_adr_i                   (WB_lbk.master.adr),
     .wb_dat_i                   (WB_lbk.master.dat_o),
     .wb_dat_o                   (WB_lbk.master.dat_i),
@@ -460,8 +466,8 @@ module main;
     wrc_src = new(WB_wrc_src.get_accessor());
     WB_wrc_src.settings.cyc_on_stall = 1;
 
-    enc_src = new(WB_enc_src.get_accessor());
-    WB_enc_src.settings.cyc_on_stall = 1;
+    fec_src = new(WB_fec_src.get_accessor());
+    WB_fec_src.settings.cyc_on_stall = 1;
 
     ep_src = new(WB_ep_src.get_accessor());
     WB_ep_src.settings.cyc_on_stall = 1;
@@ -484,9 +490,9 @@ module main;
 
     #1400us;
     $display("Fixed IFG");
-    send_frames(enc_src, frame_number, 1 /* force Inter-frame gap of 1 us */);
+    send_frames(ep_src, frame_number, 1 /* force Inter-frame gap of 1 us */);
     $display("Random IFG");
-    send_frames(enc_src, frame_number, 0 /* random Inter-frame gap, between 1 and 100us */);
+    send_frames(ep_src, frame_number, 0 /* random Inter-frame gap, between 1 and 100us */);
 
 
   end
@@ -516,11 +522,11 @@ module main;
     codes['hE1]="Frame Error - wrong sequence ID";
     codes['hE2]="Frame Error - rx function returned error code";
 
-    WB_wrc_snk.settings.gen_random_stalls = 0;
+    WB_wrc_snk.settings.gen_random_stalls = 1;
     wrc_snk = new(WB_wrc_snk.get_accessor());
 
-    WB_dec_snk.settings.gen_random_stalls = 0;
-    dec_snk = new(WB_dec_snk.get_accessor());
+    WB_fec_snk.settings.gen_random_stalls = 1;
+    fec_snk = new(WB_fec_snk.get_accessor());
 
     WB_ep_snk.settings.gen_random_stalls = 0;
     ep_snk = new(WB_ep_snk.get_accessor());
@@ -535,7 +541,7 @@ module main;
 
     while(1) begin
       #0.5us;
-      dec_snk.recv(pkt);
+      ep_snk.recv(pkt);
 
       /// /////////////////////////////////////////////////////////////////////////////////
       /// received frame generated inside LM32
@@ -545,8 +551,7 @@ module main;
         ret  = 'h0000FFFF & (pkt.payload[4] << 8 | pkt.payload[5]);
         $display("--> recv [size=%4d] LM32-generated fame seqID: exp=%4d | rx=%4d, stat=%s [0x%4x], ret=%2d",pkt.size, lm32_seqID_reg, lm32_seqID_rx, codes[stat], stat,ret);
         txPkt.get(1);//use semaphore to coordinate with the transmissin in function: send_frames()
-        //ep_src.send(pkt);
-        enc_src.send(pkt);
+        ep_src.send(pkt);
         txPkt.put(1);
         //check seqID
         if(lm32_seqID_reg != lm32_seqID_rx)
