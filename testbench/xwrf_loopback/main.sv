@@ -1,6 +1,5 @@
 `timescale 1ns/1ps
 
-   
 `include "tbi_utils.sv"
 
 `include "simdrv_defs.svh"
@@ -90,18 +89,18 @@ module main;
 		lbk_src = new(WB_lbk_src.get_accessor());
 		WB_lbk_src.settings.cyc_on_stall = 1;
 
-    #1us;
-		acc_lbk.write(`ADDR_LBK_DMAC_H, 32'h00001122);
-		#1us;
-		acc_lbk.write(`ADDR_LBK_DMAC_L, 32'h33445566);
-		#1us;
-		acc_lbk.write(`ADDR_LBK_MCR, `LBK_MCR_ENA | `LBK_MCR_FDMAC);
-		//acc_lbk.write(`ADDR_LBK_MCR, `LBK_MCR_ENA);
+    //#1us;
+		//acc_lbk.write(`ADDR_LBK_DMAC_H, 32'h00001122);
+		//#1us;
+		//acc_lbk.write(`ADDR_LBK_DMAC_L, 32'h33445566);
+		//#1us;
+		//acc_lbk.write(`ADDR_LBK_MCR, `LBK_MCR_ENA | `LBK_MCR_FDMAC);
+		acc_lbk.write(`ADDR_LBK_MCR, `LBK_MCR_ENA);
 
     #1500ns;
     tx_sizes = {};
     //NOW LET'S SEND SOME FRAMES
-    send_frames(lbk_src, 1500);
+    send_frames(lbk_src, 10000);
   end
 
   initial begin
@@ -116,22 +115,27 @@ module main;
     while(1) begin
 			#1us;
 			lbk_snk.recv(pkt);
-			//if(pkt.size-prev_size!=1)
-			//	$warning("--> recv: size=%4d, %4d", pkt.size, pkt.size-prev_size);
-			if(pkt.dst[0]!=8'h11 || pkt.dst[1]!=8'h22 || pkt.dst[2]!=8'h33 || 
-				 pkt.dst[3]!=8'h44 || pkt.dst[4]!=8'h55 || pkt.dst[5]!=8'h66)
-			//if(pkt.dst[0]!=8'h16 || pkt.dst[1]!=8'h21 || pkt.dst[2]!=8'h2c || 
-			//	 pkt.dst[3]!=8'h2c || pkt.dst[4]!=8'h37 || pkt.dst[5]!=8'h42)
-			begin
-				$write("%02X:", pkt.dst[0]);
-				$write("%02X:", pkt.dst[1]);
-				$write("%02X:", pkt.dst[2]);
-				$write("%02X:", pkt.dst[3]);
-				$write("%02X:", pkt.dst[4]);
-				$write("%02X",  pkt.dst[5]);
-				$warning("--> recv: size=%4d, %4d", pkt.size, pkt.size-prev_size);
-			end;
-			prev_size = pkt.size;
+			$write("--> recv: size=%X ", pkt.size - 14);
+      $write("%02X:", pkt.dst[0]);
+			$write("%02X:", pkt.dst[1]);
+			$write("%02X:", pkt.dst[2]);
+			$write("%02X:", pkt.dst[3]);
+			$write("%02X:", pkt.dst[4]);
+			$write("%02X:", pkt.dst[5]);
+      $write("%02X:", pkt.src[0]);
+			$write("%02X:", pkt.src[1]);
+			$write("%02X:", pkt.src[2]);
+			$write("%02X:", pkt.src[3]);
+			$write("%02X:", pkt.src[4]);
+			$write("%02X \n", pkt.src[5]);
+
+      if(pkt.dst[5] != 'hff)
+        begin
+        $stop;
+        $write("Error");
+      end
+
+
 			//acc_lbk.read(`ADDR_LBK_RCV_CNT, val64);
 			//$display("rcv_cnt: %d", val64);
 			//acc_lbk.read(`ADDR_LBK_DRP_CNT, val64);

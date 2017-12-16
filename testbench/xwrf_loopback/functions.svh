@@ -51,11 +51,11 @@ task send_frames(WBPacketSource src, int n_packets);
   tmpl.ethertype	=	{'h0800};
   //tmpl.ethertype	=	{'hdbff};
   //tmpl.ethertype	=	{'h88f7};
-  
+
   //gen.set_randomization(EthPacketGenerator::SEQ_PAYLOAD | EthPacketGenerator::ETHERTYPE /*| EthPacketGenerator::RX_OOB*/) ;
   gen.set_randomization(EthPacketGenerator::SEQ_PAYLOAD ) ;
   gen.set_template(tmpl);
-  gen.set_size(1, 1500);
+  gen.set_size(64, 100);
 
   cur_size = 9;
   //cur_size = 1056;
@@ -72,12 +72,14 @@ task send_frames(WBPacketSource src, int n_packets);
     else
       cur_size -= 1;
 
+    cur_size =  $urandom_range(64,1500);
+    $write("Pkt %d sent %H \n", i, cur_size);
     pkt         = gen.gen(cur_size);
     //pkt         = gen.gen();
     tx_sizes = {tx_sizes, pkt.size};
     tx_padded = {tx_padded, padded_size(pkt)};
     src.send(pkt);
-		//#2us;
+		#5us;
   end
 endtask
 

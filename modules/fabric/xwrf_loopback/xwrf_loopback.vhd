@@ -69,6 +69,7 @@ architecture behav of xwrf_loopback is
   signal frame_wr  : std_logic;
   signal frame_rd  : std_logic;
   signal ffifo_full  : std_logic;
+  signal ffifo_empty  : std_logic;
   signal sfifo_empty : std_logic;
   signal sfifo_full  : std_logic;
   signal fsize_in  : std_logic_vector(15 downto 0);
@@ -126,8 +127,10 @@ begin
   FRAME_FIFO: generic_sync_fifo
     generic map(
       g_data_width  => 16,
-      g_size        => 2048,
+      --g_size        => 2048,
+      g_size        => 8192,
       g_with_empty  => true,
+      g_show_ahead  => true,
       g_with_full   => true,
       g_with_almost_empty  => false,
       g_with_almost_full   => false,
@@ -139,13 +142,13 @@ begin
       we_i    => frame_wr,
       q_o     => frame_out,
       rd_i    => frame_rd,
-      empty_o => open,
+      empty_o => ffifo_empty,
       full_o  => ffifo_full);
 
   SIZE_FIFO: generic_sync_fifo
     generic map(
       g_data_width  => 16,
-      g_size        => 8,
+      g_size        => 32,
       g_show_ahead  => true,
       g_with_empty  => true,
       g_with_full   => true,
@@ -263,10 +266,10 @@ begin
               fsize <= fsize + 1;
             end if;
 
-            if(fsize>4 and fword_valid='1' and ffifo_full='0') then -- because we don't store DMAC
+            if(fword_valid='1' and ffifo_full='0') then
               frame_wr <= '1';
               frame_in <= wrf_snk_i.dat;
-            elsif(fsize>4 and fword_valid='1' and ffifo_full='1') then
+            elsif(fword_valid='1' and ffifo_full='1') then
               fsize <= fsize-2; --last write was already unsuccesfull lbk_rxfsm   <= DROP; end if; 
               lbk_rxfsm <= DROP;
             end if;
@@ -300,7 +303,7 @@ begin
   -------------------------------------------
   -- TX FSM
   -------------------------------------------
-  WRF_SRC: ep_rx_wb_master
+  WRF_SRC_MOD: ep_rx_wb_master
     generic map(
       g_ignore_ack => false,
       g_cyc_on_stall => true)
@@ -351,17 +354,14 @@ begin
           when GET_SIZE =>
             txsize   <= unsigned(fsize_out);
             tx_cnt   <= (others=>'0');
-            if(src_dreq='1') then
-              src_fab.sof <= '1';
-              frame_rd <= '1';
-              lbk_txfsm <= PAYLOAD;
-            end if;
+            src_fab.sof <= '1';
+            lbk_txfsm <= PAYLOAD;
 
           when PAYLOAD =>
-            if(src_dreq='1' and txsize>1) then
+            if(src_dreq = '1' and txsize>1) then
               txsize <= txsize - 2;
               src_fab.bytesel <= '0';
-            elsif(src_dreq='1' and txsize=1) then
+            elsif(src_dreq = '1' and txsize=1) then
               txsize <= txsize - 1;
               src_fab.bytesel <= '1';
             end if;
@@ -371,24 +371,27 @@ begin
               tx_cnt <= tx_cnt + 1;
             end if;
 
-            if(src_dreq='1' and (tx_cnt<3 or tx_cnt>5) and txsize>2) then
+            src_fab.dvalid <= src_dreq;
+
+            if(src_dreq='1') then
               frame_rd <= '1';
-              src_fab.dvalid <= '1';
-            elsif( (src_dreq='1' and tx_cnt>=3 and tx_cnt<=5) or
-                   (src_dreq='1' and tx_cnt>5 and txsize<=2) ) then
-              src_fab.dvalid <= '1';
+            else
+              frame_rd <= '0';
             end if;
 
-            if(txsize<=2 and src_dreq='1') then
-              lbk_txfsm   <= EOF;
+            if(txsize = 0) then
+              lbk_txfsm       <= EOF;
+              frame_rd        <= '0';
+              src_fab.dvalid  <= '0';
+              src_fab.eof     <= '1';
             end if;
 
           when EOF =>
-            if(src_dreq='1') then
-              src_fab.eof <= '1';
+            --if(src_dreq='1') then
+              --src_fab.eof <= '1';
               fwd_cnt_inc <= '1';
               lbk_txfsm <= IDLE;
-            end if;
+            --end if;
 
         end case;
       end if;
