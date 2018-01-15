@@ -54,6 +54,7 @@ class EthPacket;
 
    task set_size(int size);
       payload  = new[size](payload);
+      this.size = size;
    endtask
    
    function new(int size = _zero);
