@@ -383,15 +383,15 @@ begin
               lbk_txfsm       <= EOF;
               frame_rd        <= '0';
               src_fab.dvalid  <= '0';
-              src_fab.eof     <= '1';
+              --src_fab.eof     <= '1';
             end if;
 
           when EOF =>
-            --if(src_dreq='1') then
-              --src_fab.eof <= '1';
+            if(src_dreq='1') then
+              src_fab.eof <= '1';
               fwd_cnt_inc <= '1';
               lbk_txfsm <= IDLE;
-            --end if;
+            end if;
 
         end case;
       end if;
