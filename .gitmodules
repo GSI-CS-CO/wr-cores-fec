@@ -12,4 +12,4 @@
 	url = git://ohwr.org/hdl-core-lib/vme64x-core.git
 [submodule "ip_cores/wb_fec"]
 	path = ip_cores/wb_fec
-	url = git@bitbucket.org:bradomyn/wb_fec.git
+	url = https://github.com/GSI-CS-CO/wb_fec.git
