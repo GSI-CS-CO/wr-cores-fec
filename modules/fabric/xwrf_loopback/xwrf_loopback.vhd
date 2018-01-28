@@ -65,6 +65,7 @@ architecture behav of xwrf_loopback is
   signal fwd_cnt_inc : std_logic;
 
   signal frame_in  : std_logic_vector(15 downto 0);
+  signal frame_in_d: std_logic_vector(15 downto 0);
   signal frame_out : std_logic_vector(15 downto 0);
   signal frame_wr  : std_logic;
   signal frame_rd  : std_logic;
@@ -138,7 +139,7 @@ begin
     port map(
       rst_n_i => rst_n_i,
       clk_i   => clk_sys_i,
-      d_i     => frame_in,
+      d_i     => frame_in_d,
       we_i    => frame_wr,
       q_o     => frame_out,
       rd_i    => frame_rd,
@@ -229,7 +230,8 @@ begin
   -------------------------------------------
   -- RX FSM
   -------------------------------------------
-  fword_valid <= '1' when(wrf_snk_i.cyc='1' and wrf_snk_i.stb='1' and wrf_snk_i.adr=c_WRF_DATA) else
+  fword_valid <= '1' when(wrf_snk_i.cyc='1' and wrf_snk_i.stb='1' and
+                         (wrf_snk_i.adr=c_WRF_DATA or wrf_snk_i.adr=c_WRF_STATUS)) else
                  '0';
 
   process(clk_sys_i)
@@ -249,14 +251,23 @@ begin
         else
           wrf_snk_o.ack <= '0';
         end if;
-        
+
+        frame_in_d  <= frame_in;
+
         case lbk_rxfsm is
           when IDLE =>
             if(regs_fromwb.mcr_ena_o='1' and wrf_snk_i.cyc='1' and ffifo_full='0' and sfifo_full='0') then
               lbk_rxfsm <= PAYLOAD;
+              frame_wr  <= '1';
             elsif(regs_fromwb.mcr_ena_o='1' and wrf_snk_i.cyc='1') then
               drp_cnt_inc <= '1';
               lbk_rxfsm <= DROP;
+            end if;
+
+            if(fword_valid = '1' and wrf_snk_i.sel = "11" and ffifo_full='0') then
+              fsize <= fsize + 2;
+            elsif(fword_valid = '1' and wrf_snk_i.sel = "10" and ffifo_full='0') then
+              fsize <= fsize + 1;
             end if;
 
           when PAYLOAD =>
@@ -268,7 +279,6 @@ begin
 
             if(fword_valid='1' and ffifo_full='0') then
               frame_wr <= '1';
-              frame_in <= wrf_snk_i.dat;
             elsif(fword_valid='1' and ffifo_full='1') then
               fsize <= fsize-2; --last write was already unsuccesfull lbk_rxfsm   <= DROP; end if; 
               lbk_rxfsm <= DROP;
@@ -296,6 +306,8 @@ begin
       end if;
     end if;
   end process;
+
+  frame_in <= wrf_snk_i.dat;
   wrf_snk_o.stall <= '0';
   wrf_snk_o.rty   <= '0';
   wrf_snk_o.err   <= '0';
@@ -305,7 +317,7 @@ begin
   -------------------------------------------
   WRF_SRC_MOD: ep_rx_wb_master
     generic map(
-      g_ignore_ack => false,
+      g_ignore_ack => true,
       g_cyc_on_stall => true)
     port map(
       clk_sys_i  => clk_sys_i,
@@ -322,7 +334,9 @@ begin
                   forced_dmac(1) when(regs_fromwb.mcr_fdmac_o='1' and tx_cnt=2) else
                   forced_dmac(2) when(regs_fromwb.mcr_fdmac_o='1' and tx_cnt=3) else
                   frame_out;
-  src_fab.addr <= c_WRF_DATA;
+
+  src_fab.addr <= c_WRF_STATUS when tx_cnt = 1 else
+                  c_WRF_DATA;
 
   process(clk_sys_i)
   begin
@@ -365,7 +379,7 @@ begin
               txsize <= txsize - 1;
               src_fab.bytesel <= '1';
             end if;
-            
+
             --tx_cnt used only for ETH header counting words
             if(src_dreq='1' and tx_cnt<15) then
               tx_cnt <= tx_cnt + 1;
