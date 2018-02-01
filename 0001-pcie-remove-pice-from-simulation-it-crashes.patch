@@ -1,0 +1,22 @@
+From 7684c0784dedccf2a8b79e048b9cf08cf8aabd5d Mon Sep 17 00:00:00 2001
+From: Cesar Prados <c.prados@gsi.de>
+Date: Thu, 1 Feb 2018 22:58:03 +0100
+Subject: [PATCH] pcie: remove pice from simulation, it crashes...
+
+---
+ platform/altera/Manifest.py | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/platform/altera/Manifest.py b/platform/altera/Manifest.py
+index c505212..72c42bc 100644
+--- a/platform/altera/Manifest.py
++++ b/platform/altera/Manifest.py
+@@ -1,5 +1,4 @@
+ modules = { "local" : [
+-  "wb_pcie",
+   "flash",
+   "networks",
+   ]}
+-- 
+2.16.1
+
